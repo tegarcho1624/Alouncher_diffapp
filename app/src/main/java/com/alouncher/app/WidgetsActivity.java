@@ -47,6 +47,8 @@ import java.util.concurrent.Executors;
  */
 public class WidgetsActivity extends Activity {
 
+    /** Resultado para la Home: ComponentName.flattenToString() del widget elegido (mantener presionado). */
+    static final String EXTRA_PROVIDER = "provider";
     private static final String STATE_PKG = "selectedPkg";
     private static final String STATE_QUERY = "query";
 
@@ -620,6 +622,16 @@ public class WidgetsActivity extends Activity {
 
             h.name.setText(getString(R.string.widget_nombre_tamano, it.label, it.cellsW, it.cellsH));
             FontManager.applyTo(h.name);
+
+            // 6B-1: mantener presionado = devolver este widget a la Home y cerrar el panel
+            final AppWidgetProviderInfo chosen = it.info;
+            h.box.setOnLongClickListener(v -> {
+                v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+                setResult(RESULT_OK, new android.content.Intent()
+                        .putExtra(EXTRA_PROVIDER, chosen.provider.flattenToString()));
+                finish();
+                return true;
+            });
         }
 
         @Override

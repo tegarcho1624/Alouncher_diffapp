@@ -115,6 +115,28 @@ final class HomeStore {
     private final SharedPreferences sp;
     private final LinkedHashMap<String, Instance> map = new LinkedHashMap<>();
     private final LinkedHashMap<String, Folder> folders = new LinkedHashMap<>();
+
+    /** Un widget colocado en la Home (6B-1). Inmutable. id = appWidgetId. */
+    static final class Widget {
+        final int id;
+        final int page;
+        final int row;
+        final int col;
+        final int w;
+        final int h;
+
+        Widget(int id, int page, int row, int col, int w, int h) {
+            this.id = id;
+            this.page = page;
+            this.row = row;
+            this.col = col;
+            this.w = w;
+            this.h = h;
+        }
+    }
+
+    /** Widgets colocados: SOLO en memoria (no se guardan; la persistencia es la fase 6B-3). */
+    private final LinkedHashMap<Integer, Widget> widgets = new LinkedHashMap<>();
     private final ArrayList<Integer> pages = new ArrayList<>();
     private int mainId = 1;
     private int nextId = 2;
@@ -317,6 +339,7 @@ final class HomeStore {
         while (fi.hasNext()) {
             if (fi.next().page == id) fi.remove();
         }
+        widgets.values().removeIf(wd -> wd.page == id);
         save();
         return true;
     }
@@ -363,6 +386,7 @@ final class HomeStore {
                 if (instanceAt(false, page, r, c) != null) return false;
                 Folder other = folderAtRaw(page, r, c);
                 if (other != null && !other.id.equals(selfId)) return false;
+                if (widgetAtRaw(page, r, c) != null) return false;
             }
         }
         return true;
@@ -370,7 +394,8 @@ final class HomeStore {
 
     /** ¿Hay algo (app o carpeta) en esa celda? El dock solo lleva apps. */
     private boolean occupied(boolean dock, int page, int r, int c) {
-        return instanceAt(dock, page, r, c) != null || (!dock && folderAtRaw(page, r, c) != null);
+        return instanceAt(dock, page, r, c) != null
+                || (!dock && (folderAtRaw(page, r, c) != null || widgetAtRaw(page, r, c) != null));
     }
 
     /** Quita SOLO esa instancia. */
@@ -455,6 +480,7 @@ final class HomeStore {
         int pg = dock ? 0 : page;
         if (!valid(dock, pg, r, c)) return FULL;
         if (!dock && folderAtRaw(pg, r, c) != null) return FULL; // una carpeta no se pisa
+        if (!dock && widgetAtRaw(pg, r, c) != null) return FULL;  // un widget tampoco
         Instance occ = instanceAt(dock, pg, r, c);
         if (occ != null && occ.id.equals(id)) return OK;
         if (occ == null) {
@@ -484,6 +510,59 @@ final class HomeStore {
             }
         }
         return best;
+    }
+
+    // ---- Widgets (6B-1: solo en memoria) --------------------------------------------
+
+    synchronized List<Widget> widgets() {
+        return new ArrayList<>(widgets.values());
+    }
+
+    private Widget widgetAtRaw(int page, int r, int c) {
+        for (Widget wd : widgets.values()) {
+            if (wd.page == page && r >= wd.row && r < wd.row + wd.h && c >= wd.col && c < wd.col + wd.w) return wd;
+        }
+        return null;
+    }
+
+    /** ¿Cabe un widget de w x h celdas con su esquina superior izquierda ahí, sin pisar apps, carpetas ni otros widgets? */
+    private boolean widgetRectFree(int page, int row, int col, int w, int h) {
+        if (w < 1 || h < 1 || row < 0 || col < 0 || row + h > HOME_ROWS || col + w > HOME_COLS) return false;
+        for (int r = row; r < row + h; r++) {
+            for (int c = col; c < col + w; c++) {
+                if (instanceAt(false, page, r, c) != null) return false;
+                if (folderAtRaw(page, r, c) != null) return false;
+                if (widgetAtRaw(page, r, c) != null) return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Primer lugar libre para un widget de w x h celdas: empieza en la página de índice startIndex,
+     * sigue con las siguientes y después con las anteriores; dentro de cada página va por filas.
+     * @return {idPágina, fila, columna} o null si no cabe en ninguna.
+     */
+    synchronized int[] findWidgetSpot(int startIndex, int w, int h) {
+        int n = pages.size();
+        if (n == 0) return null;
+        int start = Math.max(0, Math.min(n - 1, startIndex));
+        for (int k = 0; k < n; k++) {
+            int page = pages.get((start + k) % n);
+            for (int r = 0; r + h <= HOME_ROWS; r++) {
+                for (int c = 0; c + w <= HOME_COLS; c++) {
+                    if (widgetRectFree(page, r, c, w, h)) return new int[]{page, r, c};
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Registra un widget ya vinculado. false si ese rectángulo ya no está libre. No guarda en disco. */
+    synchronized boolean addWidget(int id, int page, int row, int col, int w, int h) {
+        if (!pages.contains(page) || !widgetRectFree(page, row, col, w, h)) return false;
+        widgets.put(id, new Widget(id, page, row, col, w, h));
+        return true;
     }
 
     // ---- Carpetas ------------------------------------------------------------------
@@ -575,6 +654,7 @@ final class HomeStore {
             return OK;
         }
         if (f.page == page && f.row == r && f.col == c) return OK;
+        if (widgetAtRaw(page, r, c) != null) return FULL; // un widget no se pisa
         Folder dst = folderAtRaw(page, r, c);
         if (dst != null) return mergeFolders(id, dst.id);
         Instance occ = instanceAt(false, page, r, c);

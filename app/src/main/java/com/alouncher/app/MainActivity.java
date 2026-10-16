@@ -1,6 +1,10 @@
 package com.alouncher.app;
 
 import android.app.Activity;
+import android.appwidget.AppWidgetHost;
+import android.appwidget.AppWidgetHostView;
+import android.appwidget.AppWidgetManager;
+import android.appwidget.AppWidgetProviderInfo;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ClipData;
@@ -323,6 +327,7 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
         store = new CustomizationStore(this);
         homeStore = new HomeStore(this);
+        initWidgetHost();
         pruneFolderFiles(); // borra imágenes de carpetas que ya no existen
         if (savedInstanceState != null) {
             pendingIconKey = savedInstanceState.getString(STATE_PENDING_KEY);
@@ -547,6 +552,13 @@ public class MainActivity extends Activity {
         homeBackdrop.clearVideo();
         drawerBackdrop.clearVideo();
         if (audio != null) audio.release();
+        if (widgetHost != null) {
+            try {
+                widgetHost.deleteHost(); // los widgets aún no se guardan
+            } catch (Exception ignored) {
+                // nada que hacer
+            }
+        }
         super.onDestroy();
     }
 
@@ -1975,10 +1987,19 @@ public class MainActivity extends Activity {
             FrameLayout cell = h.cells[fo.row][fo.col];
             cell.addView(makeFolderItem(fo, cell));
         }
+        // Widgets (6B-1): en la misma capa, sobre todas las celdas que ocupan
+        for (HomeStore.Widget wd : homeStore.widgets()) {
+            if (wd.page != pageId) continue;
+            AppWidgetHostView hv = widgetViews.get(wd.id);
+            if (hv == null) continue;
+            if (hv.getParent() instanceof ViewGroup) ((ViewGroup) hv.getParent()).removeView(hv);
+            h.layer.addFolder(hv, wd.row, wd.col, wd.w, wd.h);
+        }
     }
 
     /** Redibuja páginas, dock, indicador y mensaje desde lo guardado. */
     private void renderHome() {
+        pruneWidgetViews();
         pagesAdapter.notifyDataSetChanged();
         for (FrameLayout slot : dockSlots) slot.removeAllViews();
 
@@ -1993,6 +2014,7 @@ public class MainActivity extends Activity {
             }
         }
         shown += homeStore.folders().size();
+        shown += homeStore.widgets().size();
         syncIndicator();
         homeHint.setVisibility(loaded && shown == 0 ? View.VISIBLE : View.GONE);
         fillFolderBody(); // si hay una carpeta abierta, se actualiza (nombres, íconos, apps desinstaladas)
@@ -2347,11 +2369,270 @@ public class MainActivity extends Activity {
         findViewById(R.id.edit_add_right).setOnClickListener(v -> addPageAt(currentIndex + 1));
         findViewById(R.id.edit_action_themes).setOnClickListener(v ->
                 startActivity(new Intent(this, BackgroundsActivity.class)));
-        findViewById(R.id.edit_action_widgets).setOnClickListener(v ->
-                startActivity(new Intent(this, WidgetsActivity.class)));
+        findViewById(R.id.edit_action_widgets).setOnClickListener(v -> openWidgetsPanel());
         findViewById(R.id.edit_action_config).setOnClickListener(v ->
                 startActivity(new Intent(this, HomeSettingsActivity.class)));
         editLayer.setOnDragListener(this::onEditDrag);
+    }
+
+
+    // =========================================================================
+    //  Widgets en la Home (fase 6B-1): colocar con "mantener presionado" desde el panel.
+    //  Sin guardar (6B-3), sin mover (6B-2), sin redimensionar (6B-4), sin quitar (6B-5).
+    // =========================================================================
+
+    private static final int REQ_WIDGET_PICK = 1003;
+    private static final int REQ_WIDGET_BIND = 1004;
+    private static final int REQ_WIDGET_CONFIG = 1005;
+    private static final int WIDGET_HOST_ID = 1024;
+
+    private AppWidgetManager widgetManager;
+    private AppWidgetHost widgetHost;
+    private final Map<Integer, AppWidgetHostView> widgetViews = new HashMap<>();
+    // Widget a medias (esperando el diálogo de autorización o su pantalla de configuración)
+    private int pendingWidgetId = -1;
+    private AppWidgetProviderInfo pendingWidgetInfo;
+    private int[] pendingWidgetSpot; // {idPágina, fila, columna, ancho, alto}
+
+    private void initWidgetHost() {
+        widgetManager = AppWidgetManager.getInstance(this);
+        widgetHost = new AppWidgetHost(this, WIDGET_HOST_ID);
+        try {
+            // Los widgets aún no se guardan: se liberan los ids que hubiera dejado una sesión anterior
+            widgetHost.deleteHost();
+        } catch (Exception ignored) {
+            // si el sistema no lo permite, solo quedan ids sin usar
+        }
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        try {
+            if (widgetHost != null) widgetHost.startListening();
+        } catch (Exception ignored) {
+            // sin actualizaciones de widgets, pero la Home sigue funcionando
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        try {
+            if (widgetHost != null) widgetHost.stopListening();
+        } catch (Exception ignored) {
+            // nada que hacer
+        }
+        super.onStop();
+    }
+
+    private void openWidgetsPanel() {
+        startActivityForResult(new Intent(this, WidgetsActivity.class), REQ_WIDGET_PICK);
+    }
+
+    /** Tamaño en celdas de la Home (columnas, filas) que necesita el widget según su tamaño mínimo. */
+    private int[] widgetCells(AppWidgetProviderInfo info) {
+        int pw = pager.getWidth();
+        int ph = pager.getHeight();
+        float cellW = (pw - dp(48)) / (float) HomeStore.HOME_COLS;
+        float cellH = (ph - dp(16) - dp(PAGE_BOTTOM_PAD_DP)) / (float) HomeStore.HOME_ROWS;
+        int cw;
+        int ch;
+        if (cellW > dp(20) && cellH > dp(20)) {
+            // minWidth/minHeight vienen en píxeles; cada celda pierde 3 dp de margen por lado
+            cw = (int) Math.ceil((info.minWidth + dp(6)) / cellW);
+            ch = (int) Math.ceil((info.minHeight + dp(6)) / cellH);
+        } else {
+            float density = getResources().getDisplayMetrics().density;
+            cw = (int) ((info.minWidth / density + 30f) / 70f);
+            ch = (int) ((info.minHeight / density + 30f) / 70f);
+        }
+        return new int[]{
+                Math.max(1, Math.min(HomeStore.HOME_COLS, cw)),
+                Math.max(1, Math.min(HomeStore.HOME_ROWS, ch))};
+    }
+
+    /** El panel devolvió un widget (mantener presionado): ver si cabe, vincularlo, configurarlo y colocarlo. */
+    private void onWidgetPicked(int resultCode, Intent data) {
+        if (resultCode != RESULT_OK || data == null) return;
+        String flat = data.getStringExtra(WidgetsActivity.EXTRA_PROVIDER);
+        ComponentName cn = flat == null ? null : ComponentName.unflattenFromString(flat);
+        if (cn == null) return;
+
+        AppWidgetProviderInfo info = null;
+        try {
+            for (AppWidgetProviderInfo p : widgetManager.getInstalledProviders()) {
+                if (p.provider.equals(cn)) {
+                    info = p;
+                    break;
+                }
+            }
+        } catch (Exception ignored) {
+            // se trata como no disponible
+        }
+        if (info == null) {
+            toast(R.string.widget_no_disponible);
+            return;
+        }
+
+        // Primero se mira si cabe: así no se pide autorización para algo que no se va a poder colocar
+        int[] size = widgetCells(info);
+        int[] spot = homeStore.findWidgetSpot(currentIndex, size[0], size[1]);
+        if (spot == null) {
+            toast(R.string.widget_sin_espacio);
+            return;
+        }
+
+        cancelPendingWidget(); // por si quedó otro a medias
+        int id = -1;
+        try {
+            id = widgetHost.allocateAppWidgetId();
+        } catch (Exception e) {
+            toast(R.string.widget_no_se_pudo);
+            return;
+        }
+        pendingWidgetId = id;
+        pendingWidgetInfo = info;
+        pendingWidgetSpot = new int[]{spot[0], spot[1], spot[2], size[0], size[1]};
+
+        boolean bound = false;
+        try {
+            bound = widgetManager.bindAppWidgetIdIfAllowed(id, info.provider);
+        } catch (Exception ignored) {
+            // se pide la autorización al usuario
+        }
+        if (bound) {
+            configureOrPlaceWidget();
+            return;
+        }
+        // Aún no autorizado: diálogo del sistema (se puede marcar "siempre permitir")
+        Intent bind = new Intent(AppWidgetManager.ACTION_APPWIDGET_BIND)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, info.provider);
+        try {
+            startActivityForResult(bind, REQ_WIDGET_BIND);
+        } catch (ActivityNotFoundException | SecurityException e) {
+            cancelPendingWidget();
+            toast(R.string.widget_no_se_pudo);
+        }
+    }
+
+    private void onWidgetBindResult(int resultCode) {
+        if (pendingWidgetInfo == null) return;
+        if (resultCode != RESULT_OK) {
+            cancelPendingWidget();
+            toast(R.string.widget_sin_permiso);
+            return;
+        }
+        configureOrPlaceWidget();
+    }
+
+    private void onWidgetConfigResult(int resultCode) {
+        if (pendingWidgetInfo == null) return;
+        if (resultCode != RESULT_OK) {
+            cancelPendingWidget(); // configuración cancelada: no se coloca
+            return;
+        }
+        placePendingWidget();
+    }
+
+    /** Algunos widgets (reloj, notas...) necesitan una pantalla de configuración antes de mostrarse. */
+    private void configureOrPlaceWidget() {
+        AppWidgetProviderInfo info = pendingWidgetInfo;
+        if (info == null) return;
+        if (info.configure != null) {
+            try {
+                widgetHost.startAppWidgetConfigureActivityForResult(
+                        this, pendingWidgetId, 0, REQ_WIDGET_CONFIG, null);
+                return;
+            } catch (Exception ignored) {
+                // no se pudo abrir su configuración: se intenta colocar tal cual
+            }
+        }
+        placePendingWidget();
+    }
+
+    private void placePendingWidget() {
+        AppWidgetProviderInfo info = pendingWidgetInfo;
+        int id = pendingWidgetId;
+        int[] s = pendingWidgetSpot;
+        if (info == null || s == null) {
+            cancelPendingWidget();
+            return;
+        }
+        pendingWidgetInfo = null;
+        pendingWidgetId = -1;
+        pendingWidgetSpot = null;
+
+        AppWidgetHostView hv = null;
+        try {
+            hv = widgetHost.createView(this, id, info);
+        } catch (Exception ignored) {
+            // se avisa abajo
+        }
+        if (hv == null || !homeStore.addWidget(id, s[0], s[1], s[2], s[3], s[4])) {
+            try {
+                widgetHost.deleteAppWidgetId(id);
+            } catch (Exception ignored) {
+                // nada que hacer
+            }
+            toast(hv == null ? R.string.widget_no_se_pudo : R.string.widget_sin_espacio);
+            return;
+        }
+        trackWidgetSize(hv);
+        widgetViews.put(id, hv);
+
+        // Se muestra la Home en la página donde quedó el widget
+        currentIndex = Math.max(0, homeStore.indexOf(s[0]));
+        if (editMode) exitEditMode(false);
+        renderHome();
+        pager.scrollToPosition(currentIndex);
+        indicator.setCurrent(currentIndex);
+    }
+
+    private void cancelPendingWidget() {
+        if (pendingWidgetId != -1 && widgetHost != null) {
+            try {
+                widgetHost.deleteAppWidgetId(pendingWidgetId);
+            } catch (Exception ignored) {
+                // nada que hacer
+            }
+        }
+        pendingWidgetId = -1;
+        pendingWidgetInfo = null;
+        pendingWidgetSpot = null;
+    }
+
+    /** Le dice al widget cuánto mide realmente (dp) para que se dibuje a su tamaño. */
+    private void trackWidgetSize(AppWidgetHostView hv) {
+        hv.addOnLayoutChangeListener((v, left, top, right, bottom, oldL, oldT, oldR, oldB) -> {
+            int w = right - left;
+            int h = bottom - top;
+            if (w <= 0 || h <= 0 || (w == oldR - oldL && h == oldB - oldT)) return;
+            float d = getResources().getDisplayMetrics().density;
+            int wd = Math.round(w / d);
+            int hd = Math.round(h / d);
+            ((AppWidgetHostView) v).updateAppWidgetSize(null, wd, hd, wd, hd);
+        });
+    }
+
+    /** Libera los widgets que ya no están en la Home (p. ej. al eliminar su página). */
+    private void pruneWidgetViews() {
+        if (widgetViews.isEmpty()) return;
+        java.util.Set<Integer> live = new java.util.HashSet<>();
+        for (HomeStore.Widget wd : homeStore.widgets()) live.add(wd.id);
+        java.util.Iterator<Map.Entry<Integer, AppWidgetHostView>> it = widgetViews.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<Integer, AppWidgetHostView> e = it.next();
+            if (live.contains(e.getKey())) continue;
+            View v = e.getValue();
+            if (v.getParent() instanceof ViewGroup) ((ViewGroup) v.getParent()).removeView(v);
+            try {
+                widgetHost.deleteAppWidgetId(e.getKey());
+            } catch (Exception ignored) {
+                // nada que hacer
+            }
+            it.remove();
+        }
     }
 
     private void openSoon(int titleRes) {
@@ -2675,6 +2956,18 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_WIDGET_PICK) {
+            onWidgetPicked(resultCode, data);
+            return;
+        }
+        if (requestCode == REQ_WIDGET_BIND) {
+            onWidgetBindResult(resultCode);
+            return;
+        }
+        if (requestCode == REQ_WIDGET_CONFIG) {
+            onWidgetConfigResult(resultCode);
+            return;
+        }
         if (requestCode == REQ_PICK_FOLDER_IMAGE) {
             onFolderImagePicked(resultCode, data);
             return;

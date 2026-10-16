@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Sin <uses-permission>: ni QUERY_ALL_PACKAGES, ni internet, ni nada.
-         Este bloque basta para ver todas las apps que tienen ícono en el menú. -->
+    <!-- Sin QUERY_ALL_PACKAGES, ni internet, ni nada: el bloque <queries> basta para ver todas las apps con ícono en el menú.
+         BIND_APPWIDGET (fase 6B-1): Android solo lo concede a launchers del sistema; en un launcher normal
+         se pide al usuario con el diálogo ACTION_APPWIDGET_BIND la primera vez que coloca un widget. -->
+    <uses-permission android:name="android.permission.BIND_APPWIDGET" />
+
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />

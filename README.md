@@ -65,3 +65,13 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
 - Tamaño en celdas: (dp + 30) / 70 con minWidth/minHeight (llegan en px, se pasan a dp); en Android 12+ se usa targetCellWidth/Height si existe.
 - Vista previa: previewImage del widget; si no tiene, el ícono de la app y "Sin vista previa". Se dibuja a tamaño real (sin ampliar; solo se reduce si no cabe).
 - Sin permisos nuevos y sin cambios en la Home, el cajón ni las carpetas. Colocar el widget en la Home llega en la 6B.
+
+## Fase 6B-1 (colocar un widget en la Home)
+- En el panel de Widgets, mantener presionada la vista previa cierra el panel y coloca el widget en la Home:
+  primer espacio libre empezando por la página actual (luego las siguientes y después las anteriores).
+- El tamaño en celdas sale de minWidth/minHeight del widget, medido contra las celdas reales de la Home.
+- Vinculación: `AppWidgetHost` (id 1024) en MainActivity. `BIND_APPWIDGET` está declarado, pero Android no lo
+  concede a launchers normales: la primera vez sale el diálogo del sistema (ACTION_APPWIDGET_BIND).
+  Los widgets con pantalla de configuración la abren antes de colocarse.
+- Las celdas del widget cuentan como ocupadas en HomeStore (apps y carpetas no se colocan encima).
+- Todavía SIN guardar (6B-3), mover (6B-2), redimensionar (6B-4) ni quitar (6B-5): al cerrar el launcher desaparece.
