@@ -34,3 +34,8 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
   que se adapta (FolderGridView), el nombre debajo y el fondo personalizado detrás.
 - Estrategia de espacio (opción B): solo crece sobre celdas libres; si no cabe no cambia nada y avisa.
 - "Redimensionar" abre un selector provisional de ancho/alto; el marco con puntos llega en la 4E-2.
+
+## Ícono personalizado en carpetas redimensionadas
+- Con ícono personalizado, la carpeta (a cualquier tamaño) muestra solo la imagen, recortada tipo "cover" a todo su rectángulo;
+  las apps solo se ven al abrirla. Sin ícono: grid interno con el fondo personalizado detrás.
+- Los íconos nuevos se guardan con su proporción original (lado largo ≤ 512 px) para no verse borrosos al ampliarse.

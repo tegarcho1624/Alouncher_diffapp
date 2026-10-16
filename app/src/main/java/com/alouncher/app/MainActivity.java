@@ -763,15 +763,21 @@ public class MainActivity extends Activity {
         box.setFocusable(true);
 
         List<Drawable> minis = new ArrayList<>();
-        for (HomeStore.Member m : fo.members) {
-            AppEntry a = allApps.get(m.key);
-            if (a == null) continue; // desinstalada o aún cargando
-            minis.add(a.newIcon(getResources()));
-            if (minis.size() == 40) break;
-        }
         FolderGridView gv = new FolderGridView(this);
-        // Si la carpeta tiene fondo personalizado, va detrás del grid interno
-        gv.setContent(minis, FolderImages.backgroundDrawable(this, fo, dp(20)));
+        // Ícono personalizado = carátula: cubre toda la carpeta y las apps no se ven (solo al abrirla)
+        Drawable cover = FolderImages.iconCoverDrawable(this, fo.icon, dp(20));
+        if (cover != null) {
+            gv.setContent(minis, cover);
+        } else {
+            for (HomeStore.Member m : fo.members) {
+                AppEntry a = allApps.get(m.key);
+                if (a == null) continue; // desinstalada o aún cargando
+                minis.add(a.newIcon(getResources()));
+                if (minis.size() == 40) break;
+            }
+            // Sin ícono: las apps en el grid interno, con el fondo personalizado detrás si lo hay
+            gv.setContent(minis, FolderImages.backgroundDrawable(this, fo, dp(20)));
+        }
         box.addView(gv, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         TextView label = new TextView(this);

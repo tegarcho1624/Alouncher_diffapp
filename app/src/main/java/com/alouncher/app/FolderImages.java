@@ -21,7 +21,7 @@ import java.util.Set;
 final class FolderImages {
     private FolderImages() {}
 
-    private static final int ICON_PX = 256;     // el ícono se guarda como cuadrado de 256 px
+    private static final int ICON_PX = 512;     // el ícono se guarda con el lado largo ≤ 512 px (mantiene su proporción)
     private static final int BG_MAX_PX = 1280;  // el fondo se guarda con el lado largo ≤ 1280 px
     private static final long KEEP_MS = 2 * 60 * 1000L; // prune no toca archivos recién creados
 
@@ -49,9 +49,13 @@ final class FolderImages {
         try {
             Bitmap src = ImageUtil.decodeSampled(tmp, ICON_PX, ICON_PX);
             if (src == null) return null;
-            int side = Math.min(src.getWidth(), src.getHeight());
-            Bitmap sq = Bitmap.createBitmap(src, (src.getWidth() - side) / 2, (src.getHeight() - side) / 2, side, side);
-            Bitmap out = Bitmap.createScaledBitmap(sq, ICON_PX, ICON_PX, true);
+            Bitmap out = src;
+            int longest = Math.max(src.getWidth(), src.getHeight());
+            if (longest > ICON_PX) {
+                float k = (float) ICON_PX / longest;
+                out = Bitmap.createScaledBitmap(src, Math.max(1, Math.round(src.getWidth() * k)),
+                        Math.max(1, Math.round(src.getHeight() * k)), true);
+            }
             String name = safe(folderId) + "-icon-" + System.currentTimeMillis() + ".png";
             return savePng(c, out, name) ? name : null;
         } catch (Exception | OutOfMemoryError e) {
@@ -149,8 +153,14 @@ final class FolderImages {
 
     /** Ícono personalizado de la carpeta cerrada, o null (= usar las miniaturas). */
     static Drawable iconDrawable(Context c, String name, int sizePx) {
-        Bitmap b = load(c, name, sizePx);
+        Bitmap b = load(c, name, ICON_PX);
         return b == null ? null : FolderCoverDrawable.icon(b, sizePx);
+    }
+
+    /** Ícono personalizado como carátula de una carpeta redimensionada (cubre todo el rectángulo), o null. */
+    static Drawable iconCoverDrawable(Context c, String name, float radiusPx) {
+        Bitmap b = load(c, name, ICON_PX);
+        return b == null ? null : FolderCoverDrawable.iconRect(b, radiusPx);
     }
 
     /** Fondo del panel abierto (imagen o color), o null (= sin fondo). */
