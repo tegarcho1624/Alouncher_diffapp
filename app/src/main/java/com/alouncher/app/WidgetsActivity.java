@@ -325,14 +325,24 @@ public class WidgetsActivity extends Activity {
                         // Solo los que se pueden poner en la pantalla de inicio (no los exclusivos de pantalla de bloqueo)
                         if ((p.widgetCategory & AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN) == 0) continue;
                         String pkg = p.provider.getPackageName();
+                        String label = p.loadLabel(pm);
                         Group g = byPkg.get(pkg);
                         if (g == null) {
-                            ApplicationInfo ai = p.providerInfo != null && p.providerInfo.applicationInfo != null
-                                    ? p.providerInfo.applicationInfo : pm.getApplicationInfo(pkg, 0);
-                            g = new Group(pkg, ai.loadLabel(pm).toString(), ai.loadIcon(pm));
+                            String appLabel;
+                            Drawable appIcon;
+                            try {
+                                ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
+                                appLabel = ai.loadLabel(pm).toString();
+                                appIcon = ai.loadIcon(pm);
+                            } catch (PackageManager.NameNotFoundException e) {
+                                // App no visible para el launcher (sin ícono de menú): se usa lo que expone el widget
+                                appLabel = label != null && !label.trim().isEmpty() ? label : pkg;
+                                appIcon = p.loadIcon(this, 0);
+                                if (appIcon == null) appIcon = pm.getDefaultActivityIcon();
+                            }
+                            g = new Group(pkg, appLabel, appIcon);
                             byPkg.put(pkg, g);
                         }
-                        String label = p.loadLabel(pm);
                         if (label == null || label.trim().isEmpty()) label = g.label;
                         g.items.add(new Item(p, label,
                                 cellsFor(p, true, density), cellsFor(p, false, density)));
