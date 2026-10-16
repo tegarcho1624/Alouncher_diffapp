@@ -24,6 +24,7 @@ final class BottomSheet {
     private final LinearLayout footer;
     private boolean keyboard;
     private final TextView titleView;
+    private View.OnDragListener windowDrag; // arrastres sobre toda la ventana de la hoja (4E-3)
 
     BottomSheet(Activity act, String title, String subtitle) {
         this.act = act;
@@ -92,6 +93,21 @@ final class BottomSheet {
     /** Recibe los eventos de arrastre que ocurren dentro de la hoja (coordenadas de la hoja). */
     void setOnDragListener(View.OnDragListener l) { sheet.setOnDragListener(l); }
 
+    /** La hoja visible (el panel), para medir sus límites y animarla durante un arrastre. */
+    View root() { return sheet; }
+
+    /** Recibe los arrastres de TODA la ventana de la hoja, aunque el dedo salga del panel (coordenadas de la ventana). */
+    void setWindowDragListener(View.OnDragListener l) {
+        windowDrag = l;
+        if (dialog.isShowing() && dialog.getWindow() != null) dialog.getWindow().getDecorView().setOnDragListener(l);
+    }
+
+    /** Oscurece (o no) lo que hay detrás de la hoja. */
+    void setDim(float amount) {
+        Window w = dialog.getWindow();
+        if (w != null) w.setDimAmount(amount);
+    }
+
     /** Abre el teclado al mostrar la hoja (para formularios). */
     void keyboard() { keyboard = true; }
 
@@ -113,6 +129,7 @@ final class BottomSheet {
         }
         dialog.setCanceledOnTouchOutside(true);
         dialog.show();
+        if (windowDrag != null && w != null) w.getDecorView().setOnDragListener(windowDrag);
     }
 
     void dismiss() {

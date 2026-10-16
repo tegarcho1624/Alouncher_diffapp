@@ -633,6 +633,69 @@ final class HomeStore {
         return OK;
     }
 
+    /** Reordenar (4E-3): dos apps de la carpeta intercambian lugares. Se guarda al instante. */
+    synchronized int swapMembers(String folderId, String idA, String idB) {
+        Folder f = folders.get(folderId);
+        if (f == null) return FULL;
+        int a = -1;
+        int b = -1;
+        for (int i = 0; i < f.members.size(); i++) {
+            String id = f.members.get(i).id;
+            if (id.equals(idA)) a = i;
+            if (id.equals(idB)) b = i;
+        }
+        if (a < 0 || b < 0) return FULL;
+        if (a == b) return OK;
+        Member t = f.members.get(a);
+        f.members.set(a, f.members.get(b));
+        f.members.set(b, t);
+        save();
+        return OK;
+    }
+
+    /**
+     * Sacar de la carpeta arrastrando (4E-3): la app se suelta en una celda de la Home o del dock.
+     *  - sobre OTRA carpeta: pasa a ella;
+     *  - celda libre: se queda ahí; ocupada por una app: el lugar libre más cercano a ese punto;
+     *  - sin sitio: FULL y no cambia nada.
+     * Si la carpeta de origen queda vacía, se elimina (igual que con removeMember).
+     */
+    synchronized int moveMemberOut(String folderId, String memberId, boolean dock, int page, int r, int c) {
+        Folder f = folders.get(folderId);
+        if (f == null) return FULL;
+        Member found = null;
+        for (Member m : f.members) {
+            if (m.id.equals(memberId)) found = m;
+        }
+        if (found == null) return FULL;
+        int pg = dock ? 0 : page;
+        if (!valid(dock, pg, r, c)) return FULL;
+        if (!dock) {
+            Folder dst = folderAtRaw(pg, r, c);
+            if (dst != null) {
+                if (dst.id.equals(folderId)) return OK; // soltada sobre su propia carpeta: no pasa nada
+                f.members.remove(found);
+                dst.members.add(found);
+                if (f.members.isEmpty()) folders.remove(folderId);
+                save();
+                return OK;
+            }
+        }
+        int rr = r;
+        int cc = c;
+        if (occupied(dock, pg, r, c)) {
+            int[] free = nearestFree(dock, pg, r, c);
+            if (free == null) return FULL;
+            rr = free[0];
+            cc = free[1];
+        }
+        f.members.remove(found);
+        map.put(found.id, new Instance(found.id, found.key, dock, pg, rr, cc));
+        if (f.members.isEmpty()) folders.remove(folderId);
+        save();
+        return OK;
+    }
+
     /**
      * Elimina la carpeta y devuelve sus apps a la Home (la primera ocupa el lugar de la carpeta).
      * @return cuántas apps no cupieron en la página (siguen instaladas y en el cajón, solo dejan de estar en la Home).

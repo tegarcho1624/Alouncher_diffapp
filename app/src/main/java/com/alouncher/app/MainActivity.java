@@ -12,7 +12,10 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Point;
+import android.graphics.RectF;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
@@ -26,10 +29,12 @@ import android.util.TypedValue;
 import android.view.DragEvent;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
+import android.view.animation.OvershootInterpolator;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -86,6 +91,10 @@ public class MainActivity extends Activity {
     private View homeTrash;
     private final FrameLayout[] dockSlots = new FrameLayout[HomeStore.DOCK_SLOTS];
     private LongPressDrag placedDrag;
+    private LongPressDrag memberDrag;                    // gesto de las apps dentro del panel de una carpeta
+    private final List<View> panelMembers = new ArrayList<>(); // vistas de las apps del panel abierto
+    private float lastDownX, lastDownY;                  // último toque (pantalla): qué app de una carpeta grande se pulsó
+    private String popId;                                // app recién soltada (animación de "soltar")
     private View hot; // celda o espacio resaltado durante un arrastre
     private int currentIndex;  // página que se está viendo
     private int edgeDir;       // -1 / 0 / 1: ícono arrastrado junto al borde -> cambia de página
@@ -177,7 +186,74 @@ public class MainActivity extends Activity {
     /** Etiqueta de una carpeta cerrada en la Home. */
     private static final class FolderRef {
         final String id;
-        FolderRef(String id) { this.id = id; }
+        final FolderGridView grid; // != null: carpeta redimensionada con apps visibles (arrastrar apps dentro)
+        FolderRef(String id) { this(id, null); }
+        FolderRef(String id, FolderGridView grid) {
+            this.id = id;
+            this.grid = grid;
+        }
+    }
+
+    /** Etiqueta de una app dentro del panel de una carpeta abierta. */
+    private static final class MemberRef {
+        final String folderId;
+        final HomeStore.Member member;
+        final AppEntry app;
+        MemberRef(String folderId, HomeStore.Member member, AppEntry app) {
+            this.folderId = folderId;
+            this.member = member;
+            this.app = app;
+        }
+    }
+
+    /** Estado de un arrastre de una app que está DENTRO de una carpeta (panel abierto o carpeta grande en la Home). */
+    private static final class MemberDrag {
+        final String folderId;
+        final String memberId;
+        final boolean inPanel;       // true: viene del panel; false: de la carpeta grande de la Home
+        final FolderGridView grid;   // la carpeta grande de origen (null si viene del panel)
+        final RectF bounds;          // límites del panel / marco de la carpeta al empezar, en pantalla
+        View hoverView;              // (panel) app resaltada bajo el dedo
+        boolean outside;             // el dedo está fuera de los límites: se va a sacar
+        boolean dropped;             // el DROP ya se atendió (llega a una sola ventana)
+        boolean ended;               // el fin del arrastre ya se atendió (llega a todas las ventanas)
+        MemberDrag(String folderId, String memberId, boolean inPanel, FolderGridView grid, RectF bounds) {
+            this.folderId = folderId;
+            this.memberId = memberId;
+            this.inPanel = inPanel;
+            this.grid = grid;
+            this.bounds = bounds;
+        }
+    }
+
+    /** Sombra del arrastre: la vista (o solo el ícono) un poco más grande, como "levantada". */
+    private static final class LiftShadow extends View.DragShadowBuilder {
+        private final Drawable icon; // null = dibuja la vista entera
+        private final int w;
+        private final int h;
+        private final float scale;
+        LiftShadow(View v, Drawable icon, int w, int h, float scale) {
+            super(v);
+            this.icon = icon;
+            this.w = Math.max(1, w);
+            this.h = Math.max(1, h);
+            this.scale = scale;
+        }
+        @Override public void onProvideShadowMetrics(Point size, Point touch) {
+            int sw = Math.round(w * scale);
+            int sh = Math.round(h * scale);
+            size.set(sw, sh);
+            touch.set(sw / 2, sh / 2);
+        }
+        @Override public void onDrawShadow(Canvas canvas) {
+            canvas.scale(scale, scale);
+            if (icon != null) {
+                icon.setBounds(0, 0, w, h);
+                icon.draw(canvas);
+            } else {
+                getView().draw(canvas);
+            }
+        }
     }
 
     /** Lo que lleva como etiqueta cada ícono colocado en la Home o el dock. */
@@ -271,16 +347,39 @@ public class MainActivity extends Activity {
         placedDrag = new LongPressDrag(this, new LongPressDrag.Listener() {
             @Override public void onLongPress(View v) {
                 Object t = v.getTag();
-                if (t instanceof Placed) showPlacedMenu(v, (Placed) t);
-                else if (t instanceof FolderRef) showFolderMenu(v, ((FolderRef) t).id);
+                if (t instanceof Placed) {
+                    showPlacedMenu(v, (Placed) t);
+                } else if (t instanceof FolderRef) {
+                    FolderRef fr = (FolderRef) t;
+                    String mid = bigMemberAtDown(fr);
+                    // Sobre una app de la carpeta grande: menú de la app; si no, el de la carpeta de siempre
+                    if (mid != null) showBigMemberMenu(v, fr.id, mid);
+                    else showFolderMenu(v, fr.id);
+                }
             }
             @Override public void onDragStart(View v) {
                 Object t = v.getTag();
                 if (t instanceof Placed) {
                     beginDrag(v, ((Placed) t).app.key(), ((Placed) t).instanceId);
                 } else if (t instanceof FolderRef) {
-                    beginFolderDrag(v, ((FolderRef) t).id);
+                    FolderRef fr = (FolderRef) t;
+                    String mid = bigMemberAtDown(fr);
+                    if (mid != null) beginMemberDrag(v, fr.id, mid, false, fr.grid);
+                    else beginFolderDrag(v, fr.id);
                 }
+            }
+        });
+        memberDrag = new LongPressDrag(this, new LongPressDrag.Listener() {
+            @Override public void onLongPress(View v) {
+                Object t = v.getTag();
+                if (t instanceof MemberRef) {
+                    MemberRef r = (MemberRef) t;
+                    showFolderMemberMenu(v, r.folderId, r.member, r.app);
+                }
+            }
+            @Override public void onDragStart(View v) {
+                Object t = v.getTag();
+                if (t instanceof MemberRef) beginMemberDrag(v, ((MemberRef) t).folderId, ((MemberRef) t).member.id, true, null);
             }
         });
         buildDock();
@@ -766,6 +865,7 @@ public class MainActivity extends Activity {
         box.setFocusable(true);
 
         List<Drawable> minis = new ArrayList<>();
+        List<String> memberIds = new ArrayList<>(); // id de miembro de cada miniatura (para arrastrar apps)
         FolderGridView gv = new FolderGridView(this);
         // Ícono personalizado = carátula: cubre toda la carpeta y las apps no se ven (solo al abrirla)
         Drawable cover = FolderImages.iconCoverDrawable(this, fo.icon, dp(20));
@@ -776,10 +876,13 @@ public class MainActivity extends Activity {
                 AppEntry a = allApps.get(m.key);
                 if (a == null) continue; // desinstalada o aún cargando
                 minis.add(a.newIcon(getResources()));
+                memberIds.add(m.id);
                 if (minis.size() == 40) break;
             }
             // Sin ícono: las apps en el grid interno, con el fondo personalizado detrás si lo hay
             gv.setContent(minis, FolderImages.backgroundDrawable(this, fo, dp(20)));
+            gv.setMemberIds(memberIds);
+            if (popId != null && memberIds.contains(popId)) gv.popMember(popId); // recién soltada aquí
         }
         box.addView(gv, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
@@ -798,7 +901,7 @@ public class MainActivity extends Activity {
         lp.bottomMargin = dp(4);
         box.addView(label, lp);
 
-        box.setTag(new FolderRef(fo.id));
+        box.setTag(new FolderRef(fo.id, cover == null ? gv : null)); // con carátula no hay apps visibles
         box.setOnClickListener(v -> showFolderPanel(fo.id));
         placedDrag.attach(box);
         return box;
@@ -1059,6 +1162,10 @@ public class MainActivity extends Activity {
         });
         folderSheet = s;
         openFolderId = folderId;
+        s.setWindowDragListener((v, e) -> {  // arrastrar apps dentro del panel o sacarlas de él
+            Object ls = e.getLocalState();
+            return ls instanceof MemberDrag && onMemberDrag(v, e, (MemberDrag) ls);
+        });
         fillFolderBody();
 
         // Botón circular (esquina inferior derecha) para personalizar el fondo de esta carpeta
@@ -1090,6 +1197,7 @@ public class MainActivity extends Activity {
         folderSheet.title().setText(folderDisplayName(f));
         LinearLayout body = folderSheet.body();
         body.removeAllViews();
+        panelMembers.clear();
 
         // Fondo propio de esta carpeta (solo dentro del panel; la carpeta cerrada no lo usa)
         Drawable bg = FolderImages.backgroundDrawable(this, f, dp(20));
@@ -1172,11 +1280,11 @@ public class MainActivity extends Activity {
             dismissFolderPanel();
             openApp(app);
         });
-        item.setOnLongClickListener(v -> {
-            v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
-            showFolderMemberMenu(v, folderId, m, app);
-            return true;
-        });
+        // Mantener pulsado: menú de la app; seguir sosteniendo y mover: arrastrar (reordenar o sacar de la carpeta)
+        item.setTag(new MemberRef(folderId, m, app));
+        memberDrag.attach(item);
+        panelMembers.add(item);
+        if (m.id.equals(popId)) popView(item);
         return item;
     }
 
@@ -1201,6 +1309,249 @@ public class MainActivity extends Activity {
             return;
         }
         renderHome(); // también actualiza (o cierra) el panel
+    }
+
+    // ---- Arrastrar apps DENTRO de una carpeta (4E-3) ------------------------------------
+    //  - en el panel abierto y en la carpeta grande de la Home:
+    //      * soltar sobre otra app de la carpeta  -> intercambian lugares (se guarda al instante)
+    //      * soltar fuera del panel / del marco   -> sale de la carpeta y queda en la Home o el dock
+    //  - "Quitar de la carpeta" está en el menú de la app (mantener pulsado), en los dos contextos.
+
+    /** Guarda dónde se tocó por última vez (pantalla): en una carpeta grande las apps no son vistas, se buscan por punto. */
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (ev.getActionMasked() == MotionEvent.ACTION_DOWN) {
+            lastDownX = ev.getRawX();
+            lastDownY = ev.getRawY();
+        }
+        return super.dispatchTouchEvent(ev);
+    }
+
+    /** La app de la carpeta grande que está bajo el último toque, o null (= el toque fue en la carpeta, no en una app). */
+    private String bigMemberAtDown(FolderRef fr) {
+        if (fr.grid == null) return null;
+        int[] o = new int[2];
+        fr.grid.getLocationOnScreen(o);
+        return fr.grid.memberIdAt(lastDownX - o[0], lastDownY - o[1]);
+    }
+
+    /** Menú de una app dentro de una carpeta grande de la Home (el mismo del panel, con "Quitar de la carpeta"). */
+    private void showBigMemberMenu(View anchor, String folderId, String memberId) {
+        HomeStore.Folder f = homeStore.folder(folderId);
+        if (f == null) return;
+        for (HomeStore.Member m : f.members) {
+            if (!m.id.equals(memberId)) continue;
+            AppEntry app = allApps.get(m.key);
+            if (app != null) showFolderMemberMenu(anchor, folderId, m, app);
+            return;
+        }
+    }
+
+    private void beginMemberDrag(View v, String folderId, String memberId, boolean inPanel, FolderGridView grid) {
+        dismissMenu();
+        View frame = inPanel ? (folderSheet != null ? folderSheet.root() : null) : grid;
+        if (frame == null) return;
+        int[] o = new int[2];
+        frame.getLocationOnScreen(o);
+        RectF bounds = new RectF(o[0], o[1], o[0] + frame.getWidth(), o[1] + frame.getHeight());
+
+        View.DragShadowBuilder shadow = null;
+        if (inPanel) {
+            shadow = new LiftShadow(v, null, v.getWidth(), v.getHeight(), 1.15f); // la app "se levanta"
+        } else {
+            HomeStore.Folder f = homeStore.folder(folderId);
+            AppEntry app = null;
+            if (f != null) {
+                for (HomeStore.Member m : f.members) {
+                    if (m.id.equals(memberId)) app = allApps.get(m.key);
+                }
+            }
+            int sz = grid.iconSizePx();
+            if (app != null && sz > 0) shadow = new LiftShadow(v, app.newIcon(getResources()), sz, sz, 1.25f);
+        }
+        if (shadow == null) return;
+
+        MemberDrag d = new MemberDrag(folderId, memberId, inPanel, grid, bounds);
+        boolean started = v.startDragAndDrop(ClipData.newPlainText("member", memberId), shadow, d, 0);
+        if (!started) return;
+        if (inPanel) v.setAlpha(0.35f);       // su lugar queda tenue mientras viaja
+        else grid.setLifted(memberId);
+    }
+
+    /** Eventos del arrastre de una app de carpeta. Llegan por la Home y por la ventana del panel: todo se calcula en coordenadas de pantalla. */
+    private boolean onMemberDrag(View v, DragEvent e, MemberDrag d) {
+        switch (e.getAction()) {
+            case DragEvent.ACTION_DRAG_STARTED:
+                return true;
+            case DragEvent.ACTION_DRAG_ENTERED:
+            case DragEvent.ACTION_DRAG_LOCATION: {
+                int[] o = new int[2];
+                v.getLocationOnScreen(o);
+                memberDragMove(d, o[0] + e.getX(), o[1] + e.getY());
+                return true;
+            }
+            case DragEvent.ACTION_DRAG_EXITED:
+                return true;
+            case DragEvent.ACTION_DROP: {
+                int[] o = new int[2];
+                v.getLocationOnScreen(o);
+                return memberDragDrop(d, o[0] + e.getX(), o[1] + e.getY());
+            }
+            case DragEvent.ACTION_DRAG_ENDED:
+                memberDragEnd(d);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void memberDragMove(MemberDrag d, float sx, float sy) {
+        if (d.ended) return;
+        if (d.bounds.contains(sx, sy)) {                 // dentro: se puede soltar sobre otra app para intercambiar
+            setMemberOutside(d, false);
+            setMemberHover(d, memberUnder(d, sx, sy));
+            setHot(null);
+            setEdgeDir(0);
+            return;
+        }
+        setMemberOutside(d, true);                        // fuera: se va a sacar de la carpeta
+        setMemberHover(d, null);
+        int[] h = new int[2];
+        homeLayer.getLocationOnScreen(h);
+        float hx = sx - h[0];
+        float hy = sy - h[1];
+        Target t = targetAt(hx, hy);
+        if (t != null && !t.dock) {                       // su propia carpeta no cuenta como destino
+            HomeStore.Folder own = homeStore.folderAt(t.page, t.row, t.col);
+            if (own != null && own.id.equals(d.folderId)) t = null;
+        }
+        setHot(t != null ? t.view : null);
+        setEdgeDir(hx < dp(48) ? -1 : (hx > homeLayer.getWidth() - dp(48) ? 1 : 0));
+    }
+
+    private boolean memberDragDrop(MemberDrag d, float sx, float sy) {
+        if (d.dropped) return false;
+        d.dropped = true;
+        setHot(null);
+        setEdgeDir(0);
+        if (d.bounds.contains(sx, sy)) {                 // dentro: intercambiar con la app bajo el dedo
+            String over = memberUnder(d, sx, sy);
+            if (over == null) return false;               // soltada en su sitio: la sombra vuelve a él
+            if (homeStore.swapMembers(d.folderId, d.memberId, over) != HomeStore.OK) return false;
+            popId = d.memberId;                           // se guardó el orden nuevo; la animación sale al redibujar
+            return true;
+        }
+        int[] h = new int[2];
+        homeLayer.getLocationOnScreen(h);
+        Target t = targetAt(sx - h[0], sy - h[1]);
+        if (t == null) return false;                      // fuera de la cuadrícula y del dock: no pasa nada
+        if (!t.dock) {
+            HomeStore.Folder own = homeStore.folderAt(t.page, t.row, t.col);
+            if (own != null && own.id.equals(d.folderId)) return false;
+        }
+        int res = homeStore.moveMemberOut(d.folderId, d.memberId, t.dock, t.page, t.row, t.col);
+        if (res == HomeStore.FULL) {
+            toast(t.dock ? R.string.dock_lleno : R.string.home_llena);
+            return false;
+        }
+        popId = d.memberId;
+        return true;
+    }
+
+    private void memberDragEnd(MemberDrag d) {
+        if (d.ended) return;
+        d.ended = true;
+        setHot(null);
+        setEdgeDir(0);
+        setMemberHover(d, null);
+        if (d.inPanel) {
+            if (folderSheet != null) {
+                View r = folderSheet.root();
+                r.animate().cancel();
+                r.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(160).start();
+                folderSheet.setDim(0.72f);
+            }
+        } else if (d.grid != null) {
+            d.grid.clearDragState();
+        }
+        if (popId != null) ui.postDelayed(() -> popId = null, 1500);
+        ui.post(this::renderHome); // dibuja lo guardado (también restaura el ícono "levantado" si no se movió)
+    }
+
+    /** El dedo sale (o vuelve) de los límites: el panel se achica y se aclara la Home, o la carpeta grande muestra un borde. */
+    private void setMemberOutside(MemberDrag d, boolean out) {
+        if (d.outside == out) return;
+        d.outside = out;
+        if (d.inPanel) {
+            if (folderSheet == null) return;
+            View r = folderSheet.root();
+            r.setPivotX(r.getWidth() / 2f);
+            r.setPivotY(r.getHeight());
+            r.animate().cancel();
+            r.animate().alpha(out ? 0.35f : 1f).scaleX(out ? 0.88f : 1f).scaleY(out ? 0.88f : 1f)
+                    .setDuration(160).start();
+            folderSheet.setDim(out ? 0f : 0.72f);
+        } else if (d.grid != null) {
+            d.grid.setOutside(out);
+        }
+    }
+
+    /** Resalta la app de la carpeta sobre la que está el dedo (null = ninguna). */
+    private void setMemberHover(MemberDrag d, String memberId) {
+        if (d.inPanel) {
+            View hv = null;
+            if (memberId != null) {
+                for (View v : panelMembers) {
+                    Object t = v.getTag();
+                    if (t instanceof MemberRef && ((MemberRef) t).member.id.equals(memberId)) hv = v;
+                }
+            }
+            if (d.hoverView == hv) return;
+            if (d.hoverView != null) {
+                d.hoverView.setActivated(false);
+                d.hoverView.setBackgroundResource(R.drawable.item_bg);
+            }
+            if (hv != null) {
+                hv.setBackgroundResource(R.drawable.cell_bg);
+                hv.setActivated(true);
+            }
+            d.hoverView = hv;
+        } else if (d.grid != null) {
+            d.grid.setHover(memberId);
+        }
+    }
+
+    /** Id de la OTRA app de la carpeta que hay bajo el dedo (coordenadas de pantalla), o null. */
+    private String memberUnder(MemberDrag d, float sx, float sy) {
+        if (!d.inPanel) {
+            if (d.grid == null) return null;
+            String id = d.grid.memberIdAt(sx - d.bounds.left, sy - d.bounds.top);
+            return d.memberId.equals(id) ? null : id;
+        }
+        if (folderSheet == null) return null;
+        View scroll = (View) folderSheet.body().getParent(); // solo lo que se ve dentro de la lista desplazable
+        int[] so = new int[2];
+        scroll.getLocationOnScreen(so);
+        if (sx < so[0] || sx > so[0] + scroll.getWidth() || sy < so[1] || sy > so[1] + scroll.getHeight()) return null;
+        for (View v : panelMembers) {
+            Object t = v.getTag();
+            if (!(t instanceof MemberRef)) continue;
+            MemberRef r = (MemberRef) t;
+            if (r.member.id.equals(d.memberId)) continue;
+            int[] o = new int[2];
+            v.getLocationOnScreen(o);
+            if (sx >= o[0] && sx <= o[0] + v.getWidth() && sy >= o[1] && sy <= o[1] + v.getHeight()) return r.member.id;
+        }
+        return null;
+    }
+
+    /** Animación de "soltar": la vista aparece un poco grande y se asienta. */
+    private void popView(View v) {
+        v.setScaleX(1.25f);
+        v.setScaleY(1.25f);
+        v.setAlpha(0.6f);
+        v.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(320)
+                .setInterpolator(new OvershootInterpolator(1.6f)).start();
     }
 
     private void showFolderRenameSheet(String folderId) {
@@ -1682,6 +2033,7 @@ public class MainActivity extends Activity {
         item.setTag(new Placed(app, inst.id));              // esta INSTANCIA, no solo la app
         item.setOnClickListener(v -> openApp(app));         // todas las instancias abren la misma app
         placedDrag.attach(item);
+        if (inst.id.equals(popId)) popView(item);           // recién sacada de una carpeta: animación de soltar
         return item;
     }
 
@@ -1795,6 +2147,7 @@ public class MainActivity extends Activity {
 
     private boolean onHomeDrag(View v, DragEvent e) {
         Object ls = e.getLocalState();
+        if (ls instanceof MemberDrag) return onMemberDrag(v, e, (MemberDrag) ls); // app que sale de una carpeta
         if (!(ls instanceof DragPayload)) return false;
         DragPayload payload = (DragPayload) ls;
 
