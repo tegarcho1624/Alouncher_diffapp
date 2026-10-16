@@ -23,8 +23,10 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.text.Editable;
 import android.text.InputFilter;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.util.TypedValue;
 import android.view.DragEvent;
 import android.view.Gravity;
@@ -36,6 +38,7 @@ import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.OvershootInterpolator;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -120,6 +123,8 @@ public class MainActivity extends Activity {
     private DrawerSheet drawerSheet;
     private RecyclerView grid;
     private AppAdapter adapter;
+    private EditText drawerSearch;   // buscador del cajón
+    private View drawerEmpty;        // "No se encontraron apps"
     private boolean drawerOpen;
 
     private PopupWindow menu;
@@ -339,6 +344,8 @@ public class MainActivity extends Activity {
         drawerBackdrop = findViewById(R.id.drawer_bg);
         drawerBackdrop.setTopCornerRadius(dp(32)); // sigue la forma redondeada del cajón
         grid = findViewById(R.id.grid);
+        drawerSearch = findViewById(R.id.drawer_search);
+        drawerEmpty = findViewById(R.id.drawer_empty);
 
         dock.setMaxWidth(dp(720));
         drawerSheet.setMaxWidth(dp(960));
@@ -407,6 +414,25 @@ public class MainActivity extends Activity {
             @Override public void onHiddenApps() { showHiddenSheet(); }
         });
         grid.setAdapter(adapter);
+
+        // Buscador del cajón: filtra en tiempo real mientras se escribe
+        drawerSearch.setHighlightColor(getColor(R.color.gold_bg));
+        drawerSearch.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { }
+            @Override public void afterTextChanged(Editable s) {
+                adapter.setQuery(s.toString());
+                grid.scrollToPosition(0);
+                updateSearchState();
+            }
+        });
+        drawerSearch.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_DONE) { // "Listo" del teclado: lo baja y deja los resultados
+                hideSearchKeyboard();
+                return true;
+            }
+            return false;
+        });
 
         drawerSheet.bind(grid, new DrawerSheet.Callback() {
             @Override public void onPull(float fraction) { drawerScrim.setAlpha(1f - fraction); }
@@ -583,6 +609,7 @@ public class MainActivity extends Activity {
                 }
                 loaded = true;
                 adapter.submit(visible, !hidden.isEmpty());
+                updateSearchState(); // por si hay una búsqueda en curso mientras cambian las apps
                 renderHome();
             });
         });
@@ -2084,6 +2111,7 @@ public class MainActivity extends Activity {
         drawerTitle.setText(pickFolderId != null ? R.string.elige_app_carpeta : R.string.todas_las_apps);
         dismissMenu();
         dismissSheet();
+        resetDrawerSearch(); // el cajón siempre se abre con el buscador vacío y todas las apps
 
         int screenH = getResources().getDisplayMetrics().heightPixels;
         FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) drawerSheet.getLayoutParams();
@@ -2111,10 +2139,12 @@ public class MainActivity extends Activity {
             ui.post(() -> showFolderPanel(back));
         }
         dismissMenu();
+        hideSearchKeyboard(); // el teclado baja junto con el cajón
         drawerSheet.animate().cancel();
         drawerScrim.animate().cancel();
         if (!animate) {
             drawerLayer.setVisibility(View.GONE);
+            resetDrawerSearch();
             return;
         }
         int d = fast ? 180 : 240;
@@ -2122,8 +2152,34 @@ public class MainActivity extends Activity {
         drawerSheet.animate().translationY(drawerLayer.getHeight()).setDuration(d)
                 .setInterpolator(new AccelerateInterpolator(1.5f))
                 .withEndAction(() -> {
-                    if (!drawerOpen) drawerLayer.setVisibility(View.GONE);
+                    if (!drawerOpen) {
+                        drawerLayer.setVisibility(View.GONE);
+                        resetDrawerSearch(); // ya fuera de vista: así no se ve el grid completo reaparecer al cerrar
+                    }
                 }).start();
+    }
+
+    // =========================================================================
+    //  Buscador del cajón
+    // =========================================================================
+
+    /** Muestra el aviso de "sin resultados" (y oculta el grid) solo cuando hay búsqueda y nada coincide. */
+    private void updateSearchState() {
+        boolean none = adapter.isFiltering() && adapter.resultCount() == 0;
+        drawerEmpty.setVisibility(none ? View.VISIBLE : View.GONE);
+        grid.setVisibility(none ? View.GONE : View.VISIBLE);
+    }
+
+    /** Vacía el buscador (el TextWatcher devuelve la lista completa) y baja el teclado. */
+    private void resetDrawerSearch() {
+        if (drawerSearch.length() > 0) drawerSearch.setText("");
+        hideSearchKeyboard();
+    }
+
+    private void hideSearchKeyboard() {
+        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) imm.hideSoftInputFromWindow(drawerSearch.getWindowToken(), 0);
+        drawerSearch.clearFocus();
     }
 
     // =========================================================================

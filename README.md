@@ -46,3 +46,11 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
 - Arrastrar un punto cambia el tamaño en tiempo real (el borde sigue al dedo, ajustado a la cuadrícula), entre 1x1 y 3x3,
   sin salir del grid y solo sobre celdas libres (se detiene en la primera celda ocupada). Cada cambio se guarda.
 - Salir: tocar fuera de la carpeta, "Listo" o el botón atrás.
+
+## Fase 5A (buscador de apps en el cajón)
+- Campo "Buscar apps" en el encabezado del cajón (entre el título y "Cerrar"), con el estilo de los demás campos (input_bg).
+- Filtra en tiempo real con "contiene", sin distinguir mayúsculas, en el nombre original y en el personalizado.
+- Las apps ocultas nunca aparecen en los resultados; la celda "Apps ocultas" se esconde mientras hay búsqueda.
+- Sin coincidencias: mensaje "No se encontraron apps". Al borrar el texto vuelve la lista completa.
+- Al cerrar el cajón el campo se vacía y el teclado se baja (al abrirlo siempre está vacío).
+- MainActivity usa windowSoftInputMode="stateHidden|adjustResize" para que el teclado no tape las apps.

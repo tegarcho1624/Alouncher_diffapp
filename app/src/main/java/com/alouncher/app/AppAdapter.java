@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 final class AppAdapter extends RecyclerView.Adapter<AppAdapter.VH> {
 
@@ -24,7 +25,9 @@ final class AppAdapter extends RecyclerView.Adapter<AppAdapter.VH> {
     private static final int TYPE_APP = 0;
     private static final int TYPE_HIDDEN = 1;
 
-    private final List<AppEntry> items = new ArrayList<>();
+    private final List<AppEntry> all = new ArrayList<>();   // todas las apps visibles (las ocultas nunca están aquí)
+    private final List<AppEntry> items = new ArrayList<>();  // las que se muestran: todas, o las que coinciden con la búsqueda
+    private String query = "";                               // búsqueda actual, ya en minúsculas y sin espacios en los extremos
     private boolean showHiddenCell;
     private final Listener listener;
     private LongPressDrag drag;
@@ -34,10 +37,43 @@ final class AppAdapter extends RecyclerView.Adapter<AppAdapter.VH> {
     }
 
     void submit(List<AppEntry> apps, boolean showHiddenCell) {
-        items.clear();
-        items.addAll(apps);
+        all.clear();
+        all.addAll(apps);
         this.showHiddenCell = showHiddenCell;
+        applyFilter();            // si hay una búsqueda en curso, se mantiene
         notifyDataSetChanged();
+    }
+
+    /** Filtra por texto ("contiene", sin distinguir mayúsculas). Vacío = todas las apps. */
+    void setQuery(String q) {
+        String n = q == null ? "" : q.trim().toLowerCase(Locale.getDefault());
+        if (n.equals(query)) return;
+        query = n;
+        applyFilter();
+        notifyDataSetChanged();
+    }
+
+    boolean isFiltering() {
+        return !query.isEmpty();
+    }
+
+    /** Cuántas apps se muestran ahora (sin contar la celda "Apps ocultas"). */
+    int resultCount() {
+        return items.size();
+    }
+
+    /** Coincide si lo buscado está en el nombre original O en el nombre personalizado (si lo hay). */
+    private void applyFilter() {
+        items.clear();
+        if (query.isEmpty()) {
+            items.addAll(all);
+            return;
+        }
+        for (AppEntry a : all) {
+            boolean hit = a.originalLabel.toLowerCase(Locale.getDefault()).contains(query)
+                    || (a.customLabel != null && a.customLabel.toLowerCase(Locale.getDefault()).contains(query));
+            if (hit) items.add(a);
+        }
     }
 
     @Override
@@ -88,7 +124,8 @@ final class AppAdapter extends RecyclerView.Adapter<AppAdapter.VH> {
 
     @Override
     public int getItemCount() {
-        return items.size() + (showHiddenCell ? 1 : 0);
+        // La celda "Apps ocultas" solo se ve sin búsqueda: no se mezcla con los resultados
+        return items.size() + (showHiddenCell && query.isEmpty() ? 1 : 0);
     }
 
     static final class VH extends RecyclerView.ViewHolder {

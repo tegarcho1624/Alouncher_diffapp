@@ -352,15 +352,40 @@
                 android:paddingHorizontal="4dp">
 
                 <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
                     android:id="@+id/drawer_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
                     android:fontFamily="serif"
+                    android:maxLines="1"
                     android:text="@string/todas_las_apps"
                     android:textColor="@color/ink"
                     android:textSize="22sp"
                     android:textStyle="bold" />
+
+                <!-- Buscador de apps: mismo estilo que el buscador de fuentes (input_bg, hint mut, texto ink) -->
+                <EditText
+                    android:id="@+id/drawer_search"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="16dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/input_bg"
+                    android:drawableStart="@drawable/ic_search"
+                    android:drawableTint="@color/mut"
+                    android:drawablePadding="10dp"
+                    android:hint="@string/buscar_apps"
+                    android:imeOptions="actionDone"
+                    android:importantForAutofill="no"
+                    android:inputType="text|textNoSuggestions"
+                    android:maxLines="1"
+                    android:minWidth="96dp"
+                    android:minHeight="44dp"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="8dp"
+                    android:textColor="@color/ink"
+                    android:textColorHint="@color/mut"
+                    android:textSize="16sp" />
 
                 <TextView
                     android:id="@+id/drawer_close"
@@ -386,6 +411,22 @@
                 android:paddingBottom="16dp"
                 android:paddingTop="8dp"
                 android:scrollbars="none" />
+
+            <!-- Sin coincidencias en la búsqueda: ocupa el lugar del grid (que se oculta) -->
+            <TextView
+                android:id="@+id/drawer_empty"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:shadowColor="#CC000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="4"
+                android:text="@string/no_se_encontraron_apps"
+                android:textColor="@color/mut"
+                android:textSize="16sp"
+                android:visibility="gone" />
         
                 </LinearLayout>
             </FrameLayout>

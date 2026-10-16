@@ -22,6 +22,8 @@
     <string name="selector_no_disponible">No hay selector de imágenes disponible</string>
 
     <string name="todas_las_apps">Todas las apps</string>
+    <string name="buscar_apps">Buscar apps</string>
+    <string name="no_se_encontraron_apps">No se encontraron apps</string>
     <string name="abrir_cajon">Abrir todas las apps</string>
     <string name="home_vacia">Mantén presionada una app del cajón y arrástrala aquí</string>
     <string name="quitar_home">Quitar de la Home</string>
