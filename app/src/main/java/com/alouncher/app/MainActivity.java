@@ -2347,7 +2347,8 @@ public class MainActivity extends Activity {
         findViewById(R.id.edit_add_right).setOnClickListener(v -> addPageAt(currentIndex + 1));
         findViewById(R.id.edit_action_themes).setOnClickListener(v ->
                 startActivity(new Intent(this, BackgroundsActivity.class)));
-        findViewById(R.id.edit_action_widgets).setOnClickListener(v -> openSoon(R.string.widgets));
+        findViewById(R.id.edit_action_widgets).setOnClickListener(v ->
+                startActivity(new Intent(this, WidgetsActivity.class)));
         findViewById(R.id.edit_action_config).setOnClickListener(v ->
                 startActivity(new Intent(this, HomeSettingsActivity.class)));
         editLayer.setOnDragListener(this::onEditDrag);

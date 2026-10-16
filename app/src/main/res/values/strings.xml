@@ -182,4 +182,14 @@
     <string name="ancho">Ancho</string>
     <string name="alto">Alto</string>
     <string name="sin_espacio_carpeta">No hay espacio libre para ese tamaño</string>
+
+    <string name="widgets_subtitulo">Pulse o mantenga presionado para agregar a la pantalla de inicio</string>
+    <string name="no_se_encontraron_widgets">No se encontraron widgets</string>
+    <string name="sin_widgets_instalados">No hay widgets instalados</string>
+    <string name="sin_vista_previa">Sin vista previa</string>
+    <string name="widget_nombre_tamano">%1$s - %2$d × %3$d</string>
+    <plurals name="widgets_cantidad">
+        <item quantity="one">%d widget</item>
+        <item quantity="other">%d widgets</item>
+    </plurals>
 </resources>

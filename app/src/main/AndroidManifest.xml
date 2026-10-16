@@ -64,5 +64,12 @@
             android:name=".PlaylistActivity"
             android:exported="false"
             android:theme="@style/ScreenTheme" />
+
+        <!-- Panel de widgets (Fase 6A) -->
+        <activity
+            android:name=".WidgetsActivity"
+            android:exported="false"
+            android:theme="@style/ScreenTheme"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>

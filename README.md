@@ -55,3 +55,13 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
 - Al cerrar el cajón el campo se vacía y el teclado se baja (al abrirlo siempre está vacío).
 - MainActivity usa windowSoftInputMode="stateHidden|adjustResize" para que el teclado no tape las apps.
 - El campo es un NoDragEditText: rechaza arrastres. Un EditText normal acepta cualquier arrastre y bloqueaba soltar una app del cajón en la Home.
+
+## Fase 6A (panel de Widgets, solo visual)
+- "Widgets" del modo edición abre WidgetsActivity (antes ComingSoonActivity, que sigue en el proyecto sin usarse).
+- Izquierda (~30 %): buscador "Buscar" (contiene, sin distinguir mayúsculas, solo por nombre de app) y lista de apps con widgets
+  (ícono, nombre, "N widgets"). Derecha (~70 %): vista previa del widget elegido, "Nombre - A × B" y, si la app tiene varios,
+  carrusel deslizable con el mismo indicador de segmentos de la Home (sin casita).
+- Datos: AppWidgetManager.getInstalledProviders(), agrupados por paquete; solo widgets de pantalla de inicio. Sin AppWidgetHost ni binding.
+- Tamaño en celdas: (dp + 30) / 70 con minWidth/minHeight (llegan en px, se pasan a dp); en Android 12+ se usa targetCellWidth/Height si existe.
+- Vista previa: previewImage del widget; si no tiene, el ícono de la app y "Sin vista previa". Se dibuja a tamaño real (sin ampliar; solo se reduce si no cabe).
+- Sin permisos nuevos y sin cambios en la Home, el cajón ni las carpetas. Colocar el widget en la Home llega en la 6B.
