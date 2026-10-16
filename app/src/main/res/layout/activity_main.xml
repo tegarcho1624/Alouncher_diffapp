@@ -364,7 +364,7 @@
                     android:textStyle="bold" />
 
                 <!-- Buscador de apps: mismo estilo que el buscador de fuentes (input_bg, hint mut, texto ink) -->
-                <EditText
+                <com.alouncher.app.NoDragEditText
                     android:id="@+id/drawer_search"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"

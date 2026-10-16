@@ -54,3 +54,4 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
 - Sin coincidencias: mensaje "No se encontraron apps". Al borrar el texto vuelve la lista completa.
 - Al cerrar el cajón el campo se vacía y el teclado se baja (al abrirlo siempre está vacío).
 - MainActivity usa windowSoftInputMode="stateHidden|adjustResize" para que el teclado no tape las apps.
+- El campo es un NoDragEditText: rechaza arrastres. Un EditText normal acepta cualquier arrastre y bloqueaba soltar una app del cajón en la Home.
