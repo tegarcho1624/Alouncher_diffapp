@@ -29,6 +29,7 @@ final class HomeStore {
     static final int HOME_COLS = 6;
     static final int HOME_ROWS = 4;
     static final int DOCK_SLOTS = 7;
+    static final int FOLDER_MAX = 3; // una carpeta mide entre 1x1 y 3x3 celdas
     static final int MAX_PAGES = 7;
 
     static final int OK = 0;
@@ -80,6 +81,8 @@ final class HomeStore {
         int page;
         int row;
         int col;
+        int w = 1;                 // ancho en celdas (1..FOLDER_MAX); row/col es la esquina superior izquierda
+        int h = 1;                 // alto en celdas (1..FOLDER_MAX)
         boolean expanded;          // vista ampliada (sub-fase siguiente)
         String icon = "";          // archivo del ícono personalizado ("" = miniaturas)
         String bgImage = "";       // archivo de la imagen de fondo ("" = ninguna)
@@ -97,6 +100,8 @@ final class HomeStore {
         Folder copy() {
             Folder f = new Folder(id, page, row, col);
             f.name = name;
+            f.w = w;
+            f.h = h;
             f.expanded = expanded;
             f.icon = icon;
             f.bgImage = bgImage;
@@ -196,6 +201,20 @@ final class HomeStore {
             int c = o.optInt("c", 0);
             if (!valid(false, p, r, c) || occupied(false, p, r, c) || folders.containsKey(id)) continue;
             Folder f = new Folder(id, p, r, c);
+            // Tamaño guardado como "2x3" (ancho x alto). Si ya no cabe o está ocupado, vuelve a 1x1.
+            String sz = o.optString("sz", "");
+            int x = sz.indexOf('x');
+            if (x > 0) {
+                try {
+                    int sw = Integer.parseInt(sz.substring(0, x));
+                    int sh = Integer.parseInt(sz.substring(x + 1));
+                    if (rectFree(id, p, r, c, sw, sh)) {
+                        f.w = sw;
+                        f.h = sh;
+                    }
+                } catch (NumberFormatException ignored) {
+                }
+            }
             f.name = o.optString("n", "");
             f.expanded = o.optBoolean("x", false);
             f.icon = o.optString("ic", "");
@@ -243,6 +262,7 @@ final class HomeStore {
                 fo.put("r", f.row);
                 fo.put("c", f.col);
                 if (f.expanded) fo.put("x", true);
+                if (f.w > 1 || f.h > 1) fo.put("sz", f.w + "x" + f.h);
                 if (!f.icon.isEmpty()) fo.put("ic", f.icon);
                 if (!f.bgImage.isEmpty()) fo.put("bi", f.bgImage);
                 if (f.hasBgColor) fo.put("bc", f.bgColor);
@@ -329,9 +349,23 @@ final class HomeStore {
 
     private Folder folderAtRaw(int page, int r, int c) {
         for (Folder f : folders.values()) {
-            if (f.page == page && f.row == r && f.col == c) return f;
+            if (f.page == page && r >= f.row && r < f.row + f.h && c >= f.col && c < f.col + f.w) return f;
         }
         return null;
+    }
+
+    /** ¿Cabe ese rectángulo dentro del grid y está libre (ignorando a la propia carpeta)? */
+    private boolean rectFree(String selfId, int page, int row, int col, int w, int h) {
+        if (w < 1 || h < 1 || w > FOLDER_MAX || h > FOLDER_MAX) return false;
+        if (row < 0 || col < 0 || row + h > HOME_ROWS || col + w > HOME_COLS) return false;
+        for (int r = row; r < row + h; r++) {
+            for (int c = col; c < col + w; c++) {
+                if (instanceAt(false, page, r, c) != null) return false;
+                Folder other = folderAtRaw(page, r, c);
+                if (other != null && !other.id.equals(selfId)) return false;
+            }
+        }
+        return true;
     }
 
     /** ¿Hay algo (app o carpeta) en esa celda? El dock solo lleva apps. */
@@ -528,6 +562,18 @@ final class HomeStore {
     synchronized int moveFolder(String id, int page, int r, int c) {
         Folder f = folders.get(id);
         if (f == null || !valid(false, page, r, c)) return FULL;
+        if (f.w > 1 || f.h > 1) {
+            // Carpeta grande: no se intercambia ni se fusiona; solo se coloca si todo su rectángulo está libre.
+            int rr = Math.min(r, HOME_ROWS - f.h);
+            int cc = Math.min(c, HOME_COLS - f.w);
+            if (f.page == page && f.row == rr && f.col == cc) return OK;
+            if (!rectFree(id, page, rr, cc, f.w, f.h)) return FULL;
+            f.page = page;
+            f.row = rr;
+            f.col = cc;
+            save();
+            return OK;
+        }
         if (f.page == page && f.row == r && f.col == c) return OK;
         Folder dst = folderAtRaw(page, r, c);
         if (dst != null) return mergeFolders(id, dst.id);
@@ -536,6 +582,22 @@ final class HomeStore {
         f.page = page;
         f.row = r;
         f.col = c;
+        save();
+        return OK;
+    }
+
+    /**
+     * Cambia el rectángulo de la carpeta (esquina superior izquierda + tamaño). Solo si cabe en el grid
+     * y todas sus celdas están libres: si no, no cambia nada y devuelve FULL (las apps nunca se desplazan).
+     */
+    synchronized int resizeFolder(String id, int row, int col, int w, int h) {
+        Folder f = folders.get(id);
+        if (f == null) return FULL;
+        if (!rectFree(id, f.page, row, col, w, h)) return FULL;
+        f.row = row;
+        f.col = col;
+        f.w = w;
+        f.h = h;
         save();
         return OK;
     }

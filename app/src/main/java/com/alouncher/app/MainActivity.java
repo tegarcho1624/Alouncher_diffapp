@@ -212,11 +212,13 @@ public class MainActivity extends Activity {
 
     /** Una página de la Home: cuadrícula de celdas. */
     private static final class PageVH extends RecyclerView.ViewHolder {
-        final LinearLayout root;
+        final LinearLayout root;     // la cuadrícula de celdas
+        final FolderLayer layer;     // encima de la cuadrícula: carpetas redimensionadas (> 1x1)
         final FrameLayout[][] cells = new FrameLayout[HomeStore.HOME_ROWS][HomeStore.HOME_COLS];
-        PageVH(LinearLayout root) {
-            super(root);
+        PageVH(FrameLayout page, LinearLayout root, FolderLayer layer) {
+            super(page);
             this.root = root;
+            this.layer = layer;
         }
     }
 
@@ -753,6 +755,46 @@ public class MainActivity extends Activity {
         return item;
     }
 
+    /** Carpeta redimensionada (más de 1x1): panel con las apps en un grid interno y el nombre debajo. */
+    private View makeBigFolderItem(HomeStore.Folder fo) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setClickable(true);
+        box.setFocusable(true);
+
+        List<Drawable> minis = new ArrayList<>();
+        for (HomeStore.Member m : fo.members) {
+            AppEntry a = allApps.get(m.key);
+            if (a == null) continue; // desinstalada o aún cargando
+            minis.add(a.newIcon(getResources()));
+            if (minis.size() == 40) break;
+        }
+        FolderGridView gv = new FolderGridView(this);
+        // Si la carpeta tiene fondo personalizado, va detrás del grid interno
+        gv.setContent(minis, FolderImages.backgroundDrawable(this, fo, dp(20)));
+        box.addView(gv, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        TextView label = new TextView(this);
+        label.setText(folderDisplayName(fo));
+        label.setTextColor(getColor(R.color.ink));
+        label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        label.setGravity(Gravity.CENTER);
+        label.setSingleLine(true);
+        label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        label.setShadowLayer(dp(3), 0, dp(1), 0xCC000000);
+        FontManager.applyTo(label);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(6);
+        lp.bottomMargin = dp(4);
+        box.addView(label, lp);
+
+        box.setTag(new FolderRef(fo.id));
+        box.setOnClickListener(v -> showFolderPanel(fo.id));
+        placedDrag.attach(box);
+        return box;
+    }
+
     /**
      * Reglas al soltar (Home):
      *  - app sobre otra app  -> se crea una carpeta con ambas, en el lugar de la receptora
@@ -793,12 +835,12 @@ public class MainActivity extends Activity {
 
     /**
      * Menú de la carpeta cerrada en la Home (mismo estilo que los menús de las apps).
-     * "Ampliar carpeta" ya tiene su lugar, pero se activa en la fase siguiente.
+     * "Redimensionar" abre (por ahora) un selector de tamaño; el modo interactivo con marco llega en la 4E-2.
      */
     private void showFolderMenu(View anchor, String folderId) {
         LinearLayout col = newMenuColumn();
         col.addView(menuRow(getString(R.string.cambiar_de_nombre), () -> showFolderRenameSheet(folderId)));
-        col.addView(soonRow(getString(R.string.ampliar_carpeta)));
+        col.addView(menuRow(getString(R.string.redimensionar), () -> showFolderResizeSheet(folderId)));
         col.addView(menuRow(getString(R.string.cambiar_icono), () -> pickFolderImage(folderId, false)));
         HomeStore.Folder cur = homeStore.folder(folderId);
         if (cur != null && FolderImages.exists(this, cur.icon)) { // solo si hay ícono personalizado
@@ -806,6 +848,54 @@ public class MainActivity extends Activity {
         }
         col.addView(menuRow(getString(R.string.eliminar_carpeta), () -> confirmDeleteFolder(folderId)));
         popup(anchor, col);
+    }
+
+    /**
+     * Tamaño de la carpeta (provisional, 4E-1): ancho y alto de 1 a 3 celdas. Crece hacia la derecha y hacia abajo,
+     * solo sobre celdas libres: si no cabe, no cambia nada y avisa (las apps nunca se desplazan).
+     */
+    private void showFolderResizeSheet(String folderId) {
+        HomeStore.Folder f0 = homeStore.folder(folderId);
+        if (f0 == null) return;
+        dismissSheet();
+        BottomSheet s = new BottomSheet(this, getString(R.string.redimensionar),
+                getString(R.string.redimensionar_ayuda));
+        final String[] opts = {"1", "2", "3"};
+        final LinearLayout[] boxes = new LinearLayout[2];
+        for (int axis = 0; axis < 2; axis++) {
+            final boolean isW = axis == 0;
+            TextView lab = new TextView(this);
+            lab.setText(isW ? R.string.ancho : R.string.alto);
+            lab.setTextColor(getColor(R.color.mut));
+            lab.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.topMargin = dp(isW ? 0 : 16);
+            lp.bottomMargin = dp(8);
+            s.body().addView(lab, lp);
+
+            boxes[axis] = UiKit.segmented(this, opts, (isW ? f0.w : f0.h) - 1, idx -> {
+                HomeStore.Folder cur = homeStore.folder(folderId);
+                if (cur == null) return;
+                int nw = isW ? idx + 1 : cur.w;
+                int nh = isW ? cur.h : idx + 1;
+                if (homeStore.resizeFolder(folderId, cur.row, cur.col, nw, nh) == HomeStore.OK) {
+                    renderHome();
+                } else {
+                    toast(R.string.sin_espacio_carpeta);
+                    UiKit.select(boxes[isW ? 0 : 1], (isW ? cur.w : cur.h) - 1); // vuelve al tamaño real
+                }
+            });
+            s.body().addView(boxes[axis], new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        }
+
+        TextView done = BottomSheet.button(this, getString(R.string.listo), true);
+        done.setOnClickListener(v -> s.dismiss());
+        s.footer().addView(done, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        sheet = s;
+        s.show();
     }
 
     /** Opción de menú que todavía no está disponible: atenuada, y al tocarla avisa "Próximamente". */
@@ -1350,12 +1440,20 @@ public class MainActivity extends Activity {
     }
 
     private PageVH newPage() {
+        FrameLayout page = new FrameLayout(this);
+        page.setLayoutParams(new RecyclerView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setLayoutParams(new RecyclerView.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         root.setPadding(dp(24), dp(16), dp(24), dp(PAGE_BOTTOM_PAD_DP));
-        PageVH h = new PageVH(root);
+        page.addView(root, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        // Misma caja y mismo padding que la cuadrícula; los márgenes de celda (3 dp) coinciden con los de abajo
+        FolderLayer layer = new FolderLayer(this, dp(3));
+        layer.setPadding(dp(24), dp(16), dp(24), dp(PAGE_BOTTOM_PAD_DP));
+        page.addView(layer, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        PageVH h = new PageVH(page, root, layer);
         for (int r = 0; r < HomeStore.HOME_ROWS; r++) {
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
@@ -1385,6 +1483,7 @@ public class MainActivity extends Activity {
         for (FrameLayout[] row : h.cells) {
             for (FrameLayout cell : row) cell.removeAllViews();
         }
+        h.layer.removeAllViews();
         // Se recorre la lista de instancias y se dibuja cada una en su posición.
         for (HomeStore.Instance inst : homeStore.snapshot()) {
             if (inst.dock || inst.page != pageId) continue;
@@ -1395,6 +1494,10 @@ public class MainActivity extends Activity {
         }
         for (HomeStore.Folder fo : homeStore.folders()) {
             if (fo.page != pageId) continue;
+            if (fo.w > 1 || fo.h > 1) { // redimensionada: va en la capa, sobre todas sus celdas
+                h.layer.addFolder(makeBigFolderItem(fo), fo.row, fo.col, fo.w, fo.h);
+                continue;
+            }
             FrameLayout cell = h.cells[fo.row][fo.col];
             cell.addView(makeFolderItem(fo, cell));
         }

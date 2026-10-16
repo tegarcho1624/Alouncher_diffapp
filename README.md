@@ -26,3 +26,11 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
 - Las imágenes se copian a filesDir/folders (ícono 256×256 PNG, fondo ≤ 1280 px JPEG).
 - Persistencia en "home_layout" (por carpeta: "ic", "bi", "bc"). Si el archivo falta: miniaturas / sin fondo.
 - Las imágenes de carpetas eliminadas se limpian al iniciar y al eliminar una carpeta.
+
+## Fase 4E-1 (carpetas redimensionables: base)
+- Cada carpeta guarda su tamaño en celdas ("sz": "2x3"); la esquina superior izquierda es su fila/columna. Rango 1x1 a 3x3.
+- HomeStore trata todas las celdas del rectángulo como ocupadas (apps, arrastre y "lugar libre más cercano" las respetan).
+- Las carpetas > 1x1 se dibujan en una capa (FolderLayer) encima de la cuadrícula de la página, con un grid interno
+  que se adapta (FolderGridView), el nombre debajo y el fondo personalizado detrás.
+- Estrategia de espacio (opción B): solo crece sobre celdas libres; si no cabe no cambia nada y avisa.
+- "Redimensionar" abre un selector provisional de ancho/alto; el marco con puntos llega en la 4E-2.
