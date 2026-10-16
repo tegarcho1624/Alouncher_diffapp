@@ -1,0 +1,178 @@
+<resources>
+    <string name="app_name">Alouncher</string>
+    <string name="abrir">Abrir</string>
+    <string name="info_app">Información de la app</string>
+    <string name="no_se_pudo_abrir">No se pudo abrir la app</string>
+
+    <string name="cambiar_icono">Cambiar ícono</string>
+    <string name="cambiar_nombre">Cambiar nombre</string>
+    <string name="ocultar_app">Ocultar app</string>
+    <string name="restaurar">Restaurar</string>
+    <string name="restaurar_nombre">Restaurar nombre original</string>
+    <string name="nombre_original">Nombre original: %1$s</string>
+    <string name="guardar">Guardar</string>
+    <string name="cancelar">Cancelar</string>
+    <string name="cerrar">Cerrar</string>
+    <string name="apps_ocultas">Apps ocultas</string>
+    <string name="apps_ocultas_ayuda">Al restaurar, la app vuelve al grid con su nombre e ícono personalizados.</string>
+    <string name="app_oculta">App oculta. La encuentras en «Apps ocultas», al final del grid.</string>
+    <string name="app_restaurada">Personalización restaurada</string>
+    <string name="imagen_no_leida">No se pudo leer esa imagen</string>
+    <string name="imagen_sin_permiso">No se pudo conservar el acceso a esa imagen. Prueba con otra ubicación.</string>
+    <string name="selector_no_disponible">No hay selector de imágenes disponible</string>
+
+    <string name="todas_las_apps">Todas las apps</string>
+    <string name="abrir_cajon">Abrir todas las apps</string>
+    <string name="home_vacia">Mantén presionada una app del cajón y arrástrala aquí</string>
+    <string name="quitar_home">Quitar de la Home</string>
+    <string name="quitar_dock">Quitar del dock</string>
+    <string name="home_llena">Esta página está llena</string>
+    <string name="dock_lleno">El dock está lleno</string>
+
+    <string name="menu_home_titulo">Pantalla de inicio</string>
+    <string name="menu_home_ayuda">Mantén presionada una página para moverla; deslízala hacia arriba para eliminarla.</string>
+    <string name="fondos_temas">Fondos y temas</string>
+    <string name="widgets">Widgets</string>
+    <string name="config_home">Configuración de pantalla principal</string>
+    <string name="proximamente">Próximamente</string>
+    <string name="volver">Volver</string>
+    <string name="pagina_izquierda">Añadir página a la izquierda</string>
+    <string name="pagina_derecha">Añadir página a la derecha</string>
+    <string name="eliminar_pagina">Eliminar página</string>
+    <string name="max_paginas">Máximo de páginas alcanzado</string>
+    <string name="pagina_principal_no">La página principal no se puede eliminar</string>
+    <string name="pagina_unica_no">No se puede eliminar la única página</string>
+    <string name="pagina_eliminada">Página eliminada</string>
+
+    <string name="editar_ayuda">Mantén presionada una página y arrástrala: suéltala sobre otra para reordenar, o deslízala hacia arriba para eliminarla.</string>
+    <string name="listo">Listo</string>
+
+    <string name="estilo_escritura">Estilo de Escritura</string>
+    <string name="estilos">Estilos</string>
+    <string name="disposicion">Cambiar la disposición de la pantalla de inicio</string>
+    <string name="importar_fuente">Importar fuente</string>
+    <string name="buscar">Buscar</string>
+    <string name="buscar_fuente">Buscar fuente</string>
+    <string name="sin_resultados">Sin resultados</string>
+    <string name="fuente_importada">«%1$s» importada</string>
+    <string name="fuente_actualizada">«%1$s» actualizada</string>
+    <string name="fuente_no_valida">Ese archivo no es una fuente válida</string>
+    <string name="elegir_ttf">Elige un archivo .ttf u .otf</string>
+    <string name="error_importar">No se pudo importar la fuente</string>
+    <string name="atras">Atrás</string>
+
+    <string name="seg_home">Home</string>
+    <string name="seg_drawer">App Drawer</string>
+    <string name="fila_fondo">Fondo</string>
+    <string name="fila_fondo_animado">Fondo animado</string>
+    <string name="fila_audio">Audio</string>
+    <string name="elegir">ELEGIR</string>
+    <string name="sin_fondo">Sin fondo</string>
+    <string name="solo_home">Solo en la Home</string>
+    <string name="fondo_de">Fondo · %1$s</string>
+    <string name="aplicado">Aplicado: %1$s</string>
+    <string name="sin_fondo_sistema">Sin fondo: se usa el fondo de pantalla del sistema</string>
+    <string name="sin_fondo_drawer">Sin fondo: se usa el color del cajón</string>
+    <string name="modo_rellenar">Rellenar</string>
+    <string name="modo_estirar">Estirar</string>
+    <string name="modo_centrada">Centrada</string>
+    <string name="anadir_imagenes">Añadir imágenes del dispositivo</string>
+    <string name="quitar_fondo">Quitar fondo</string>
+    <string name="vacio_imagenes">Aún no hay imágenes. Añade una del dispositivo.</string>
+    <string name="eliminar_recurso">Eliminar</string>
+    <string name="arrastrar_ordenar">Arrastrar para ordenar</string>
+    <string name="confirmar_eliminar">¿Eliminar?</string>
+    <string name="confirmar_eliminar_detalle">«%1$s» se borrará de la lista y del almacenamiento del launcher.</string>
+    <string name="si">Sí</string>
+    <string name="no">No</string>
+    <string name="fondo_aplicado">Fondo aplicado</string>
+    <string name="fondo_quitado">Fondo quitado</string>
+    <string name="error_importar_archivo">No se pudo importar el archivo</string>
+    <plurals name="imagenes">
+        <item quantity="one">%d imagen</item>
+        <item quantity="other">%d imágenes</item>
+    </plurals>
+    <plurals name="imagenes_anadidas">
+        <item quantity="one">%d imagen añadida</item>
+        <item quantity="other">%d imágenes añadidas</item>
+    </plurals>
+
+    <string name="fondo_animado_de">Fondo animado · %1$s</string>
+    <string name="vacio_videos">Aún no hay videos. Añade uno del dispositivo.</string>
+    <string name="anadir_video">Añadir video del dispositivo</string>
+    <string name="quitar_fondo_animado">Quitar fondo animado</string>
+    <string name="sin_animado">Sin fondo animado: se ve el fondo estático o el predeterminado</string>
+    <string name="aleatorio">Aleatorio</string>
+    <string name="repetir">Repetir</string>
+    <string name="bucle">Bucle</string>
+    <string name="ayuda_bucle">Bucle repite solo el video actual. Repetir vuelve a empezar la lista al terminar el último.</string>
+    <string name="anterior">Anterior</string>
+    <string name="siguiente">Siguiente</string>
+    <string name="reproduciendo">Reproduciendo: %1$s</string>
+    <string name="ninguno_activo">Ningún video activo</string>
+    <string name="video_no_leido">No se pudo leer ese video</string>
+    <string name="fondo_animado_aplicado">Fondo animado aplicado</string>
+    <string name="fondo_animado_quitado">Fondo animado quitado</string>
+    <plurals name="videos">
+        <item quantity="one">%d video</item>
+        <item quantity="other">%d videos</item>
+    </plurals>
+    <plurals name="videos_anadidos">
+        <item quantity="one">%d video añadido</item>
+        <item quantity="other">%d videos añadidos</item>
+    </plurals>
+    <string name="sin_animado_corto">Sin fondo animado</string>
+
+    <string name="audio_de">Audio · %1$s</string>
+    <string name="vacio_audios">Aún no hay audios. Añade uno del dispositivo.</string>
+    <string name="anadir_audio">Añadir audio del dispositivo</string>
+    <string name="quitar_audio">Quitar audio</string>
+    <string name="sin_audio">Sin audio</string>
+    <string name="audio_quitado">Audio quitado</string>
+    <string name="audio_no_leido">No se pudo leer ese audio</string>
+    <string name="audio_error">No se pudo reproducir ese audio</string>
+    <string name="silencia_video">Silencia el video de fondo para escuchar la música</string>
+    <string name="audio_reproduciendo">Reproduciendo en la Home · %1$s</string>
+    <string name="audio_en_pausa">En pausa · %1$s</string>
+    <string name="audio_bloqueado">En pausa (el video suena) · %1$s</string>
+    <string name="ninguno_audio">Ningún audio activo</string>
+    <string name="ayuda_bucle_audio">Bucle repite solo el audio actual. Repetir vuelve a empezar la lista al terminar el último.</string>
+    <string name="ayuda_audio_home">El audio solo suena en la Home: se pausa al salir de ella y continúa donde quedó al volver.</string>
+    <string name="hint_audio_bloqueado">El fondo animado de la Home suena: el audio se detiene mientras tanto. Silencia el video para escucharlo.</string>
+    <string name="hint_video_suena">Mientras el video suene, la música de fondo se detiene.</string>
+    <string name="hint_video_silencio">Con el video en silencio puedes activar la música de fondo.</string>
+    <string name="silenciar">Silenciar</string>
+    <string name="activar_sonido">Activar sonido</string>
+    <string name="volumen">Volumen</string>
+    <string name="audio_pausa_video_corto"> · En pausa: el fondo animado suena</string>
+    <string name="reproducir">Reproducir</string>
+    <string name="pausar">Pausar</string>
+    <plurals name="audios">
+        <item quantity="one">%d audio</item>
+        <item quantity="other">%d audios</item>
+    </plurals>
+    <plurals name="audios_anadidos">
+        <item quantity="one">%d audio añadido</item>
+        <item quantity="other">%d audios añadidos</item>
+    </plurals>
+
+    <string name="carpeta">Carpeta</string>
+    <string name="cambiar_de_nombre">Cambiar de nombre</string>
+    <string name="eliminar_carpeta">Eliminar carpeta</string>
+    <string name="quitar_de_carpeta">Quitar de la carpeta</string>
+    <string name="apps_no_caben">Algunas apps no cupieron en esta página (siguen en el cajón)</string>
+    <string name="carpeta_eliminada">Carpeta eliminada</string>
+    <string name="anadir_app">Añadir app</string>
+    <string name="elige_app_carpeta">Elige una app para la carpeta</string>
+    <string name="ampliar_carpeta">Ampliar carpeta</string>
+    <string name="eliminar">Eliminar</string>
+    <string name="confirmar_eliminar_carpeta">¿Eliminar carpeta?</string>
+    <string name="confirmar_eliminar_carpeta_detalle">Las apps dentro volverán a la pantalla de inicio.</string>
+    <string name="quitar_icono">Quitar ícono</string>
+    <string name="icono_aplicado">Ícono aplicado</string>
+    <string name="icono_quitado">Ícono quitado</string>
+    <string name="fondo_carpeta">Fondo de la carpeta</string>
+    <string name="elegir_imagen_dispositivo">Elegir imagen del dispositivo</string>
+    <string name="color_solido">Color sólido</string>
+    <string name="elegir_color">Elige un color</string>
+</resources>

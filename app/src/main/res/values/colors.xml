@@ -1,0 +1,21 @@
+<resources>
+    <color name="bg">#0E0C0A</color>
+    <color name="ic_bg">#0E0C0A</color>
+    <color name="sf">#161310</color>
+    <color name="sf2">#1D1914</color>
+    <color name="sheet">#1A160F</color>
+    <color name="ln">#2A251D</color>
+    <color name="ln2">#3B3327</color>
+    <color name="ink">#F1E9D8</color>
+    <color name="mut">#A3987F</color>
+    <color name="gold">#C9A24B</color>
+    <color name="gold_hi">#E2BD67</color>
+    <color name="gold_bg">#1FC9A24B</color>
+    <color name="paper">#EFE6D2</color>
+    <color name="pi">#2A2218</color>
+    <color name="scrim">#B8080604</color>
+    <color name="drop_hl">#33C9A24B</color>
+    <color name="drop_hl_line">#99C9A24B</color>
+    <color name="sf3">#26211A</color>
+    <color name="danger">#D17A68</color>
+</resources>
