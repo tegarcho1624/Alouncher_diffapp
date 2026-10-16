@@ -39,3 +39,10 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
 - Con ícono personalizado, la carpeta (a cualquier tamaño) muestra solo la imagen, recortada tipo "cover" a todo su rectángulo;
   las apps solo se ven al abrirla. Sin ícono: grid interno con el fondo personalizado detrás.
 - Los íconos nuevos se guardan con su proporción original (lado largo ≤ 512 px) para no verse borrosos al ampliarse.
+
+## Fase 4E-2 (modo Redimensionar interactivo)
+- "Redimensionar" en el menú de la carpeta pone una capa (FolderResizeOverlay) encima de la Home: fondo atenuado,
+  marco dorado alrededor de las celdas de la carpeta y 4 puntos (centro de cada borde). Botón "Listo" arriba.
+- Arrastrar un punto cambia el tamaño en tiempo real (el borde sigue al dedo, ajustado a la cuadrícula), entre 1x1 y 3x3,
+  sin salir del grid y solo sobre celdas libres (se detiene en la primera celda ocupada). Cada cambio se guarda.
+- Salir: tocar fuera de la carpeta, "Listo" o el botón atrás.

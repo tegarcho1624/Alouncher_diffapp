@@ -380,6 +380,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        exitResizeMode();
         dismissMenu();
         dismissSheet();
         dismissFolderPanel();
@@ -398,7 +399,9 @@ public class MainActivity extends Activity {
     /** "Atrás": cierra el cajón si está abierto; en la Home no hace nada. */
     @Override
     public void onBackPressed() {
-        if (menu != null) {
+        if (resizeOverlay != null) {
+            exitResizeMode();
+        } else if (menu != null) {
             dismissMenu();
         } else if (editMode) {
             exitEditMode(true);
@@ -841,12 +844,12 @@ public class MainActivity extends Activity {
 
     /**
      * Menú de la carpeta cerrada en la Home (mismo estilo que los menús de las apps).
-     * "Redimensionar" abre (por ahora) un selector de tamaño; el modo interactivo con marco llega en la 4E-2.
+     * "Redimensionar" entra en el modo interactivo (marco dorado con 4 puntos).
      */
     private void showFolderMenu(View anchor, String folderId) {
         LinearLayout col = newMenuColumn();
         col.addView(menuRow(getString(R.string.cambiar_de_nombre), () -> showFolderRenameSheet(folderId)));
-        col.addView(menuRow(getString(R.string.redimensionar), () -> showFolderResizeSheet(folderId)));
+        col.addView(menuRow(getString(R.string.redimensionar), () -> enterResizeMode(folderId)));
         col.addView(menuRow(getString(R.string.cambiar_icono), () -> pickFolderImage(folderId, false)));
         HomeStore.Folder cur = homeStore.folder(folderId);
         if (cur != null && FolderImages.exists(this, cur.icon)) { // solo si hay ícono personalizado
@@ -856,52 +859,139 @@ public class MainActivity extends Activity {
         popup(anchor, col);
     }
 
-    /**
-     * Tamaño de la carpeta (provisional, 4E-1): ancho y alto de 1 a 3 celdas. Crece hacia la derecha y hacia abajo,
-     * solo sobre celdas libres: si no cabe, no cambia nada y avisa (las apps nunca se desplazan).
-     */
-    private void showFolderResizeSheet(String folderId) {
-        HomeStore.Folder f0 = homeStore.folder(folderId);
-        if (f0 == null) return;
-        dismissSheet();
-        BottomSheet s = new BottomSheet(this, getString(R.string.redimensionar),
-                getString(R.string.redimensionar_ayuda));
-        final String[] opts = {"1", "2", "3"};
-        final LinearLayout[] boxes = new LinearLayout[2];
-        for (int axis = 0; axis < 2; axis++) {
-            final boolean isW = axis == 0;
-            TextView lab = new TextView(this);
-            lab.setText(isW ? R.string.ancho : R.string.alto);
-            lab.setTextColor(getColor(R.color.mut));
-            lab.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            lp.topMargin = dp(isW ? 0 : 16);
-            lp.bottomMargin = dp(8);
-            s.body().addView(lab, lp);
+    // ---- Modo "Redimensionar" (4E-2) ---------------------------------------------------
 
-            boxes[axis] = UiKit.segmented(this, opts, (isW ? f0.w : f0.h) - 1, idx -> {
-                HomeStore.Folder cur = homeStore.folder(folderId);
-                if (cur == null) return;
-                int nw = isW ? idx + 1 : cur.w;
-                int nh = isW ? cur.h : idx + 1;
-                if (homeStore.resizeFolder(folderId, cur.row, cur.col, nw, nh) == HomeStore.OK) {
-                    renderHome();
-                } else {
-                    toast(R.string.sin_espacio_carpeta);
-                    UiKit.select(boxes[isW ? 0 : 1], (isW ? cur.w : cur.h) - 1); // vuelve al tamaño real
-                }
-            });
-            s.body().addView(boxes[axis], new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+    private FolderResizeOverlay resizeOverlay;
+    private String resizeFolderId;
+
+    /** Entra en el modo: marco dorado y 4 puntos sobre la carpeta. Los cambios de tamaño se aplican y guardan al instante. */
+    private void enterResizeMode(String folderId) {
+        HomeStore.Folder f = homeStore.folder(folderId);
+        if (f == null || editMode || drawerOpen) return;
+        if (f.page != homeStore.pageId(currentIndex)) return;
+        exitResizeMode();
+        dismissMenu();
+        dismissSheet();
+
+        FolderResizeOverlay ov = new FolderResizeOverlay(this);
+        ov.setListener(new FolderResizeOverlay.Listener() {
+            @Override public void onDrag(int handle, float x, float y, float gx, float gy) {
+                dragResize(handle, x, y, gx, gy);
+            }
+
+            @Override public void onExit() {
+                exitResizeMode();
+            }
+
+            @Override public void onSize() {
+                ui.post(() -> computeResizeGeometry());
+            }
+        });
+        ((FrameLayout) homeLayer).addView(ov, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        resizeOverlay = ov;
+        resizeFolderId = folderId;
+        ov.setFolder(f.row, f.col, f.w, f.h);
+        if (!computeResizeGeometry()) exitResizeMode();
+    }
+
+    private void exitResizeMode() {
+        if (resizeOverlay != null) {
+            ((FrameLayout) homeLayer).removeView(resizeOverlay);
+            resizeOverlay = null;
+        }
+        resizeFolderId = null;
+    }
+
+    /** Posición de la cuadrícula de la página actual en coordenadas de la capa (la misma cuenta que targetAt). */
+    private boolean computeResizeGeometry() {
+        if (resizeOverlay == null) return false;
+        PageVH h = currentPageHolder();
+        if (h == null) return false;
+        int[] a = new int[2];
+        int[] b = new int[2];
+        homeLayer.getLocationOnScreen(a);
+        h.root.getLocationOnScreen(b);
+        float left = b[0] - a[0] + h.root.getPaddingLeft();
+        float top = b[1] - a[1] + h.root.getPaddingTop();
+        float w = h.root.getWidth() - h.root.getPaddingLeft() - h.root.getPaddingRight();
+        float hh = h.root.getHeight() - h.root.getPaddingTop() - h.root.getPaddingBottom();
+        if (w <= 0 || hh <= 0) return false;
+        resizeOverlay.setGrid(left, top, w / HomeStore.HOME_COLS, hh / HomeStore.HOME_ROWS);
+        return true;
+    }
+
+    /**
+     * Arrastre de un punto: el borde sigue al dedo, ajustado a las líneas de la cuadrícula. Entre 1x1 y 3x3, sin salirse
+     * del grid y SOLO sobre celdas libres (opción B): avanza celda por celda y se detiene en la primera que no cabe.
+     */
+    private void dragResize(int handle, float x, float y, float gx, float gy) {
+        if (resizeOverlay == null || resizeFolderId == null) return;
+        HomeStore.Folder f = homeStore.folder(resizeFolderId);
+        if (f == null) {
+            exitResizeMode();
+            return;
+        }
+        float cw = resizeOverlay.cellWidth();
+        float ch = resizeOverlay.cellHeight();
+        if (cw <= 0 || ch <= 0) return;
+        final int max = HomeStore.FOLDER_MAX;
+        int row = f.row, col = f.col, w = f.w, h = f.h;
+
+        // Objetivo según la línea de la cuadrícula más cercana al punto
+        int tRow = row, tCol = col, tW = w, tH = h;
+        switch (handle) {
+            case FolderResizeOverlay.RIGHT: {
+                int line = Math.round((x - gx - resizeOverlay.gridLeft()) / cw);
+                tW = Math.max(1, Math.min(Math.min(max, HomeStore.HOME_COLS - col), line - col));
+                break;
+            }
+            case FolderResizeOverlay.LEFT: {
+                int right = col + w;
+                int line = Math.round((x - gx - resizeOverlay.gridLeft()) / cw);
+                tCol = Math.max(Math.max(0, right - max), Math.min(right - 1, line));
+                tW = right - tCol;
+                break;
+            }
+            case FolderResizeOverlay.BOTTOM: {
+                int line = Math.round((y - gy - resizeOverlay.gridTop()) / ch);
+                tH = Math.max(1, Math.min(Math.min(max, HomeStore.HOME_ROWS - row), line - row));
+                break;
+            }
+            default: { // TOP
+                int bottom = row + h;
+                int line = Math.round((y - gy - resizeOverlay.gridTop()) / ch);
+                tRow = Math.max(Math.max(0, bottom - max), Math.min(bottom - 1, line));
+                tH = bottom - tRow;
+                break;
+            }
         }
 
-        TextView done = BottomSheet.button(this, getString(R.string.listo), true);
-        done.setOnClickListener(v -> s.dismiss());
-        s.footer().addView(done, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        sheet = s;
-        s.show();
+        boolean changed = false;
+        while (row != tRow || col != tCol || w != tW || h != tH) {
+            int nRow = row, nCol = col, nW = w, nH = h;
+            if (w != tW) {
+                int step = tW > w ? 1 : -1;
+                nW = w + step;
+                if (handle == FolderResizeOverlay.LEFT) nCol = col - step;
+            } else if (h != tH) {
+                int step = tH > h ? 1 : -1;
+                nH = h + step;
+                if (handle == FolderResizeOverlay.TOP) nRow = row - step;
+            } else {
+                break;
+            }
+            if (!homeStore.canPlaceFolder(resizeFolderId, nRow, nCol, nW, nH)) break; // no cabe: se queda aquí
+            row = nRow;
+            col = nCol;
+            w = nW;
+            h = nH;
+            changed = true;
+        }
+        if (changed && homeStore.resizeFolder(resizeFolderId, row, col, w, h) == HomeStore.OK) {
+            resizeOverlay.setFolder(row, col, w, h); // el marco y los puntos siguen al borde
+            renderHome(); // la carpeta se redibuja al nuevo tamaño en tiempo real (y el tamaño queda guardado)
+        }
     }
 
     /** Opción de menú que todavía no está disponible: atenuada, y al tocarla avisa "Próximamente". */
@@ -1528,6 +1618,11 @@ public class MainActivity extends Activity {
         syncIndicator();
         homeHint.setVisibility(loaded && shown == 0 ? View.VISIBLE : View.GONE);
         fillFolderBody(); // si hay una carpeta abierta, se actualiza (nombres, íconos, apps desinstaladas)
+        if (resizeOverlay != null) { // modo redimensionar: si la carpeta desapareció, se sale
+            HomeStore.Folder rf = resizeFolderId == null ? null : homeStore.folder(resizeFolderId);
+            if (rf == null) exitResizeMode();
+            else resizeOverlay.setFolder(rf.row, rf.col, rf.w, rf.h);
+        }
     }
 
     private void syncIndicator() {

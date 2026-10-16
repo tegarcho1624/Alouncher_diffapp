@@ -586,6 +586,12 @@ final class HomeStore {
         return OK;
     }
 
+    /** ¿Podría la carpeta ocupar ese rectángulo (dentro del grid, tamaño 1..3, celdas libres)? No cambia nada. */
+    synchronized boolean canPlaceFolder(String id, int row, int col, int w, int h) {
+        Folder f = folders.get(id);
+        return f != null && rectFree(id, f.page, row, col, w, h);
+    }
+
     /**
      * Cambia el rectángulo de la carpeta (esquina superior izquierda + tamaño). Solo si cabe en el grid
      * y todas sus celdas están libres: si no, no cambia nada y devuelve FULL (las apps nunca se desplazan).
