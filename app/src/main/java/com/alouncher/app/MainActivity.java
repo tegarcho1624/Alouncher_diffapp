@@ -2693,6 +2693,8 @@ public class MainActivity extends Activity {
 
     private WidgetMoveOverlay moveOverlay;
     private int moveWidgetId = -1;
+    private int moveOriginIndex;   // índice de la página donde está el widget
+    private int moveIndex;         // índice de la página que se ve durante el arrastre
 
     /** Pulsación larga sobre un widget de la Home: menú del widget. */
     private void onWidgetLongPress(WidgetHostView v) {
@@ -2709,7 +2711,7 @@ public class MainActivity extends Activity {
         popup(anchor, col);
     }
 
-    /** Entra en el modo: marco dorado sobre el widget; se arrastra y se suelta en celdas libres de esta misma página. */
+    /** Entra en el modo: marco dorado sobre el widget; se arrastra y se suelta en celdas libres (de esta u otra página). */
     private void enterMoveMode(int widgetId) {
         HomeStore.Widget wd = homeStore.widget(widgetId);
         AppWidgetHostView hv = widgetViews.get(widgetId);
@@ -2718,12 +2720,28 @@ public class MainActivity extends Activity {
         exitMoveMode();
         dismissMenu();
         dismissSheet();
+        moveOriginIndex = currentIndex;
+        moveIndex = currentIndex;
 
         WidgetMoveOverlay ov = new WidgetMoveOverlay(this, dp(3)); // mismo margen de celda que FolderLayer
         ov.setListener(new WidgetMoveOverlay.Listener() {
             @Override public boolean canDrop(int row, int col) {
-                HomeStore.Widget cur = homeStore.widget(widgetId);
-                return cur != null && homeStore.canMoveWidget(widgetId, cur.page, row, col);
+                return moveIndex >= 0 && moveIndex < homeStore.pageCount()
+                        && homeStore.canMoveWidget(widgetId, homeStore.pageId(moveIndex), row, col);
+            }
+
+            @Override public boolean canEdge(int dir) {
+                int t = moveIndex + dir;
+                return t >= 0 && t < homeStore.pageCount();
+            }
+
+            @Override public boolean onEdge(int dir) {
+                int t = moveIndex + dir;
+                if (t < 0 || t >= homeStore.pageCount()) return false;
+                moveIndex = t;
+                goToPage(t, true); // la Home cambia de página, igual que al arrastrar una app
+                if (moveOverlay != null) moveOverlay.setOriginVisible(t == moveOriginIndex);
+                return true;
             }
 
             @Override public void onDragStart() {
@@ -2732,13 +2750,15 @@ public class MainActivity extends Activity {
             }
 
             @Override public void onDrop(int row, int col) {
-                HomeStore.Widget cur = homeStore.widget(widgetId);
-                if (cur != null) homeStore.moveWidget(widgetId, cur.page, row, col); // se guarda en home_layout
+                if (moveIndex >= 0 && moveIndex < homeStore.pageCount()) {
+                    homeStore.moveWidget(widgetId, homeStore.pageId(moveIndex), row, col); // se guarda en home_layout
+                }
                 exitMoveMode();
                 renderHome();
             }
 
             @Override public void onExit() {
+                if (moveIndex != moveOriginIndex) goToPage(moveOriginIndex, true); // cancelado: vuelve a la página de origen
                 exitMoveMode();
             }
 
@@ -2764,19 +2784,20 @@ public class MainActivity extends Activity {
         moveWidgetId = -1;
     }
 
-    /** Posición de la cuadrícula de la página actual en coordenadas de la capa (la misma cuenta que el modo Redimensionar). */
+    /**
+     * Posición de la cuadrícula en coordenadas de la capa. Se calcula con el carrusel y el relleno de página (los mismos
+     * de newPage), NO con la página actual, para que no se mueva mientras la Home se desliza a otra página.
+     */
     private boolean computeMoveGeometry() {
         if (moveOverlay == null) return false;
-        PageVH h = currentPageHolder();
-        if (h == null) return false;
         int[] a = new int[2];
         int[] b = new int[2];
         homeLayer.getLocationOnScreen(a);
-        h.root.getLocationOnScreen(b);
-        float left = b[0] - a[0] + h.root.getPaddingLeft();
-        float top = b[1] - a[1] + h.root.getPaddingTop();
-        float w = h.root.getWidth() - h.root.getPaddingLeft() - h.root.getPaddingRight();
-        float hh = h.root.getHeight() - h.root.getPaddingTop() - h.root.getPaddingBottom();
+        pager.getLocationOnScreen(b);
+        float left = b[0] - a[0] + dp(24);
+        float top = b[1] - a[1] + dp(16);
+        float w = pager.getWidth() - dp(24) - dp(24);
+        float hh = pager.getHeight() - dp(16) - dp(PAGE_BOTTOM_PAD_DP);
         if (w <= 0 || hh <= 0) return false;
         moveOverlay.setGrid(left, top, w / HomeStore.HOME_COLS, hh / HomeStore.HOME_ROWS);
         return true;

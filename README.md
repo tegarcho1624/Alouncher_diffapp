@@ -1,4 +1,4 @@
-# Alouncher (Fase 6B-2)
+# Alouncher (Fase 6B-2b)
 
 Fase 1: grid de 4 columnas, toque = abrir, pulsación larga = menú.
 Fase 2: personalización por entrada del launcher (ícono, nombre, ocultar, restaurar).
@@ -97,4 +97,7 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
   apps, carpetas, otros widgets y todo lo que se salga del grid. Mismo tamaño en celdas.
 - Soltar en lugar válido: la copia se asienta en la celda y HomeStore.moveWidget() guarda la posición (misma lista "widgets" de la 6B-3).
   Soltar en lugar inválido: la copia vuelve a su sitio con una animación corta y se sale del modo. Tocar fuera o "atrás" cancelan.
-- El movimiento es dentro de la página que se está viendo (no cambia de página al llegar al borde).
+- Cambio de página al mover: si el dedo se queda ~0,5 s a menos de 44 dp del borde izquierdo o derecho, la Home pasa a la página
+  vecina (y sigue cada 0,8 s mientras siga en el borde); una franja dorada tenue avisa. El widget se puede soltar en cualquier página
+  existente (no crea páginas nuevas). Si se suelta en un lugar inválido estando en otra página, la Home vuelve a la página de origen.
+- La cuadrícula del modo Mover se calcula con el carrusel y el relleno de página (no con la página visible), para no moverse mientras se desliza.

@@ -20,6 +20,8 @@ import android.view.animation.DecelerateInterpolator;
  * sigue al dedo y la celda de destino se resalta: dorado si cabe, rojizo si no. Al soltar:
  *  - destino válido (celdas libres y dentro del grid): la copia se asienta en la celda y se avisa con onDrop;
  *  - destino inválido: la copia vuelve a su sitio con una animación corta y se sale del modo.
+ * Si se mantiene el dedo junto al borde izquierdo o derecho, la Home cambia de página (como al arrastrar una app)
+ * y el widget puede soltarse en otra página.
  * Tocar fuera del widget (o "atrás") cancela. No conoce el modelo: la Activity le da la cuadrícula y pregunta por canDrop.
  */
 final class WidgetMoveOverlay extends View {
@@ -27,6 +29,12 @@ final class WidgetMoveOverlay extends View {
     interface Listener {
         /** ¿Cabe el widget con su esquina superior izquierda en (row, col)? */
         boolean canDrop(int row, int col);
+
+        /** ¿Hay página en esa dirección (-1 izquierda, 1 derecha) a la que pasar? */
+        boolean canEdge(int dir);
+
+        /** El dedo se quedó junto al borde: pasar a la página de esa dirección. true si cambió. */
+        boolean onEdge(int dir);
 
         /** El dedo empezó a arrastrar el widget. */
         void onDragStart();
@@ -71,6 +79,9 @@ final class WidgetMoveOverlay extends View {
     private int tRow, tCol;             // celda de destino actual
     private boolean tValid;
     private ValueAnimator anim;
+    private boolean originVisible = true; // la página que se ve es la del widget (si no, no hay hueco ni marco de origen)
+    private int edgeDir;                  // -1 / 0 / 1: dedo junto a un borde con página disponible
+    private final Runnable edgeTask = this::edgeTick;
 
     WidgetMoveOverlay(Context c, int cellMarginPx) {
         super(c);
@@ -116,6 +127,39 @@ final class WidgetMoveOverlay extends View {
     float gridLeft() { return gridLeft; }
 
     float gridTop() { return gridTop; }
+
+    /** false mientras se ve otra página distinta de la del widget: no se dibuja su hueco ni su marco. */
+    void setOriginVisible(boolean visible) {
+        originVisible = visible;
+        invalidate();
+    }
+
+    /** Recalcula el destino (p. ej. después de cambiar de página con el dedo quieto). */
+    void refreshTarget() {
+        if (dragging && cellW > 0 && cellH > 0) {
+            updateTarget();
+            invalidate();
+        }
+    }
+
+    private void setEdgeDir(int dir) {
+        if (dir == edgeDir) return;
+        edgeDir = dir;
+        removeCallbacks(edgeTask);
+        if (dir != 0) postDelayed(edgeTask, 500);
+        invalidate();
+    }
+
+    private void edgeTick() {
+        if (edgeDir == 0 || !dragging || busy || listener == null) return;
+        if (listener.onEdge(edgeDir)) refreshTarget();
+        if (listener.canEdge(edgeDir)) {
+            postDelayed(edgeTask, 800); // sigue en el borde: siguiente página
+        } else {
+            edgeDir = 0;
+            invalidate();
+        }
+    }
 
     /** Celdas que ocupa el widget ahora (esquina superior izquierda y tamaño) y la vista de la que se toma la copia. */
     void setWidget(int row, int col, int w, int h, View view) {
@@ -170,18 +214,29 @@ final class WidgetMoveOverlay extends View {
         originRect(origin);
         float radius = 20f * d;
 
-        // Fondo atenuado, con un hueco donde está el widget
-        hole.reset();
-        hole.addRoundRect(origin, radius, radius, Path.Direction.CW);
-        canvas.save();
-        canvas.clipOutPath(hole);
-        canvas.drawRect(0, 0, getWidth(), getHeight(), scrim);
-        canvas.restore();
-        canvas.drawRoundRect(origin, radius, radius, frame);
+        // Fondo atenuado, con un hueco donde está el widget (solo si se ve la página donde está)
+        if (originVisible) {
+            hole.reset();
+            hole.addRoundRect(origin, radius, radius, Path.Direction.CW);
+            canvas.save();
+            canvas.clipOutPath(hole);
+            canvas.drawRect(0, 0, getWidth(), getHeight(), scrim);
+            canvas.restore();
+            canvas.drawRoundRect(origin, radius, radius, frame);
+        } else {
+            canvas.drawRect(0, 0, getWidth(), getHeight(), scrim);
+        }
 
         if (!dragging) {
             drawHint(canvas);
             return;
+        }
+
+        // Borde activo: franja dorada tenue que avisa del cambio de página
+        if (edgeDir != 0) {
+            float sw = 28f * d;
+            if (edgeDir < 0) canvas.drawRect(0, 0, sw, getHeight(), tFillEdge());
+            else canvas.drawRect(getWidth() - sw, 0, getWidth(), getHeight(), tFillEdge());
         }
 
         // Celda de destino (si se sale del grid se dibuja pegada al borde, en rojizo)
@@ -210,8 +265,17 @@ final class WidgetMoveOverlay extends View {
         canvas.restore();
     }
 
+    private Paint tFillEdge() {
+        tFill.setColor(okFill);
+        return tFill;
+    }
+
     private void drawHint(Canvas canvas) {
         String t = getContext().getString(R.string.mover_ayuda);
+        pillText.setTextSize(14f * d);
+        float avail = getWidth() - 32f * d - 36f * d;
+        float tw = pillText.measureText(t);
+        if (avail > 0 && tw > avail) pillText.setTextSize(14f * d * avail / tw); // en pantallas estrechas el texto se ajusta
         float pw = Math.min(getWidth() - 32f * d, pillText.measureText(t) + 36f * d);
         float ph = 40f * d;
         float top = 56f * d;
@@ -251,12 +315,16 @@ final class WidgetMoveOverlay extends View {
     }
 
     private void finishDrag() {
+        removeCallbacks(edgeTask);
+        edgeDir = 0;
         final int r = tRow;
         final int c = tCol;
         if (tValid) {
             settle(gridLeft + c * cellW, gridTop + r * cellH, () -> {
                 if (listener != null) listener.onDrop(r, c);
             });
+        } else if (!originVisible) { // lugar inválido y se ve otra página: se sale (la Activity vuelve a la página de origen)
+            if (listener != null) listener.onExit();
         } else { // lugar inválido: vuelve a su sitio y se sale
             originRect(origin);
             settle(origin.left, origin.top, () -> {
@@ -300,6 +368,10 @@ final class WidgetMoveOverlay extends View {
                         fx = x - grabX;
                         fy = y - grabY;
                         updateTarget();
+                        float zone = 44f * d;
+                        int dir = x < zone ? -1 : (x > getWidth() - zone ? 1 : 0);
+                        if (dir != 0 && (listener == null || !listener.canEdge(dir))) dir = 0;
+                        setEdgeDir(dir);
                         invalidate();
                     }
                 }
@@ -328,6 +400,7 @@ final class WidgetMoveOverlay extends View {
 
     @Override
     protected void onDetachedFromWindow() {
+        removeCallbacks(edgeTask);
         if (anim != null) anim.cancel();
         releaseSnapshot();
         super.onDetachedFromWindow();
