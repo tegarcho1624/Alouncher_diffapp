@@ -2712,13 +2712,51 @@ public class MainActivity extends Activity {
         showWidgetMenu(v, v.getAppWidgetId());
     }
 
-    /** Menú del widget (mismo estilo que los de apps y carpetas). Eliminar llega en 6B-5. */
+    /** Menú del widget (mismo estilo que los de apps y carpetas). */
     private void showWidgetMenu(View anchor, int widgetId) {
         LinearLayout col = newMenuColumn();
         col.addView(menuRow(getString(R.string.mover), () -> enterMoveMode(widgetId)));
         col.addView(menuRow(getString(R.string.redimensionar), () -> enterWidgetResizeMode(widgetId)));
-        col.addView(soonRow(getString(R.string.eliminar)));
+        col.addView(menuRow(getString(R.string.eliminar), () -> confirmDeleteWidget(widgetId)));
         popup(anchor, col);
+    }
+
+    // ---- Eliminar un widget (6B-5) --------------------------------------------------------
+
+    /** Confirmación con la misma hoja que al eliminar una carpeta (Eliminar en rojo + Cancelar). */
+    private void confirmDeleteWidget(int widgetId) {
+        if (homeStore.widget(widgetId) == null) return;
+        dismissSheet();
+        BottomSheet s = new BottomSheet(this, getString(R.string.confirmar_eliminar_widget),
+                getString(R.string.confirmar_eliminar_widget_detalle));
+        LinearLayout buttons = new LinearLayout(this);
+        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        TextView delete = BottomSheet.button(this, getString(R.string.eliminar), false);
+        delete.setTextColor(getColor(R.color.danger));
+        TextView cancel = BottomSheet.button(this, getString(R.string.cancelar), true);
+        delete.setOnClickListener(v -> {
+            s.dismiss();
+            deleteWidget(widgetId);
+        });
+        cancel.setOnClickListener(v -> s.dismiss());
+        buttons.addView(delete, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.4f);
+        cp.leftMargin = dp(10);
+        buttons.addView(cancel, cp);
+        s.footer().addView(buttons);
+        sheet = s;
+        s.show();
+    }
+
+    /**
+     * Quita el widget: HomeStore borra su registro (sus celdas quedan libres) y lo guarda en home_layout, así no se
+     * restaura al reiniciar. renderHome() llama a pruneWidgetViews(), que saca la vista de la Home y libera su id en el
+     * host (AppWidgetHost.deleteAppWidgetId), sin dejar widgets huérfanos en el sistema.
+     */
+    private void deleteWidget(int widgetId) {
+        if (homeStore.widget(widgetId) == null) return;
+        homeStore.removeWidget(widgetId);
+        renderHome();
     }
 
     // ---- Redimensionar un widget (6B-4) ---------------------------------------------------

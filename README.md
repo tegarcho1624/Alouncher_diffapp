@@ -1,4 +1,4 @@
-# Alouncher (Fase 6B-4)
+# Alouncher (Fase 6B-5)
 
 Fase 1: grid de 4 columnas, toque = abrir, pulsación larga = menú.
 Fase 2: personalización por entrada del launcher (ícono, nombre, ocultar, restaurar).
@@ -74,7 +74,7 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
   concede a launchers normales: la primera vez sale el diálogo del sistema (ACTION_APPWIDGET_BIND).
   Los widgets con pantalla de configuración la abren antes de colocarse.
 - Las celdas del widget cuentan como ocupadas en HomeStore (apps y carpetas no se colocan encima).
-- Redimensionar: ver 6B-4. Todavía SIN quitar (6B-5). (Guardar: ver 6B-3; mover: ver 6B-2.)
+- Redimensionar: ver 6B-4. Quitar: ver 6B-5. (Guardar: ver 6B-3; mover: ver 6B-2.)
 
 ## Fase 6B-3 (persistencia de widgets)
 - Los widgets colocados se guardan en "home_layout" (clave "layout3", lista "widgets"): {"i": appWidgetId, "pk": proveedor "paquete/clase",
@@ -115,3 +115,11 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
 - El widget recibe su nuevo tamaño por trackWidgetSize (ya existía): al cambiar su layout llama a updateAppWidgetSize(min=max=tamaño en dp),
   así el proveedor puede redibujar su contenido para ese tamaño.
 - Sin cambios en colocar (6B-1), mover (6B-2) ni persistencia (6B-3): el formato guardado es el mismo.
+
+## Fase 6B-5 (eliminar widgets)
+- "Eliminar" del menú del widget abre la misma hoja de confirmación que al eliminar una carpeta: "¿Eliminar widget?" /
+  "El widget se quitará de la pantalla de inicio." con "Eliminar" (rojo) y "Cancelar" (MainActivity.confirmDeleteWidget).
+- Cancelar no cambia nada. Eliminar (MainActivity.deleteWidget): HomeStore.removeWidget() borra el registro de "home_layout"
+  (sus celdas quedan libres y no se restaura al reiniciar) y renderHome() llama a pruneWidgetViews(), que saca la vista de la Home
+  y libera el id con AppWidgetHost.deleteAppWidgetId(). No se añadió código de host nuevo: es el mismo camino que ya usaba
+  la eliminación de páginas con widgets.

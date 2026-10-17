@@ -193,6 +193,8 @@
     <string name="widget_sin_espacio">No hay espacio en la pantalla de inicio</string>
     <string name="widget_no_disponible">Ese widget ya no está disponible</string>
     <string name="widget_no_se_pudo">No se pudo colocar el widget</string>
+    <string name="confirmar_eliminar_widget">¿Eliminar widget?</string>
+    <string name="confirmar_eliminar_widget_detalle">El widget se quitará de la pantalla de inicio.</string>
     <string name="widget_no_redimensiona">Este widget no se puede redimensionar</string>
     <string name="widget_sin_permiso">Sin autorización no se pueden colocar widgets</string>
     <plurals name="widgets_cantidad">
