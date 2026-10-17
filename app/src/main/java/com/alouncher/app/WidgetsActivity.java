@@ -136,6 +136,7 @@ public class WidgetsActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeUtils.applyTo(this); // 7B-2: color de acento elegido
         FontManager.init(this);
         String restoredQuery = "";
         if (savedInstanceState != null) {
@@ -205,7 +206,7 @@ public class WidgetsActivity extends Activity {
         search.setHintTextColor(getColor(R.color.mut));
         search.setTextColor(getColor(R.color.ink));
         search.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-        search.setHighlightColor(getColor(R.color.gold_bg));
+        search.setHighlightColor(ThemeUtils.accentBg(this));
         search.setBackgroundResource(R.drawable.input_bg);
         search.setSingleLine(true);
         search.setImeOptions(EditorInfo.IME_ACTION_DONE);

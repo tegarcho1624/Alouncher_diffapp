@@ -103,6 +103,7 @@ public class PlaylistActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeUtils.applyTo(this); // 7B-2: color de acento elegido
         FontManager.init(this);
         String s = getIntent().getStringExtra(EXTRA_SCOPE);
         String t = getIntent().getStringExtra(EXTRA_TYPE);
@@ -341,7 +342,7 @@ public class PlaylistActivity extends Activity {
         seek = new SeekBar(this);
         seek.setMax(100);
         seek.setProgress(pl.volume);
-        ColorStateList gold = ColorStateList.valueOf(getColor(R.color.gold));
+        ColorStateList gold = ColorStateList.valueOf(ThemeUtils.accent(this));
         seek.setProgressTintList(gold);
         seek.setThumbTintList(gold);
         seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -591,7 +592,7 @@ public class PlaylistActivity extends Activity {
             boolean current = it.id.equals(pl.cur);
             h.row.setSelected(current);
             h.name.setText(it.name);
-            h.name.setTextColor(getColor(current ? R.color.gold_hi : R.color.ink));
+            h.name.setTextColor(current ? ThemeUtils.accentHi(this) : getColor(R.color.ink));
             h.meta.setText(metaOf(it));
 
             // Audio: ▶/⏸ en el actual; resto de tipos: palomita

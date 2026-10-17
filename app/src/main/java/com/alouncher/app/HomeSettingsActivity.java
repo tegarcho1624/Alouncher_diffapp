@@ -22,6 +22,7 @@ public class HomeSettingsActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeUtils.applyTo(this); // 7B-2: color de acento elegido
         FontManager.init(this);
 
         root = new LinearLayout(this);
@@ -117,8 +118,10 @@ public class HomeSettingsActivity extends Activity {
             swatch.setFocusable(true);
             swatch.setOnClickListener(v -> {
                 s.dismiss();
+                int before = ThemeUtils.version();
                 ThemeUtils.setAccent(this, color);
                 accentDot.setColor(ThemeUtils.accent(this));
+                if (ThemeUtils.version() != before) recreate(); // esta pantalla también toma el color nuevo
             });
             FrameLayout box = new FrameLayout(this);
             FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(dp(48), dp(48));

@@ -53,12 +53,12 @@ final class FolderGridView extends View {
         line.setStyle(Paint.Style.STROKE);
         line.setColor(0x40F1E9D8);
         line.setStrokeWidth(Math.max(1f, d));
-        hoverFill.setColor(c.getColor(R.color.drop_hl));
+        hoverFill.setColor(ThemeUtils.dropHl(c));
         hoverLine.setStyle(Paint.Style.STROKE);
-        hoverLine.setColor(c.getColor(R.color.drop_hl_line));
+        hoverLine.setColor(ThemeUtils.dropHlLine(c));
         hoverLine.setStrokeWidth(Math.max(1f, d));
         outLine.setStyle(Paint.Style.STROKE);
-        outLine.setColor(c.getColor(R.color.gold_hi));
+        outLine.setColor(ThemeUtils.accentHi(c));
         outLine.setStrokeWidth(2f * d);
         outLine.setPathEffect(new DashPathEffect(new float[]{10f * d, 7f * d}, 0f));
     }

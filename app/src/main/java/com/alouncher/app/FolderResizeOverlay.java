@@ -55,8 +55,8 @@ final class FolderResizeOverlay extends View {
         scrim.setColor(0x59000000);
         frame.setStyle(Paint.Style.STROKE);
         frame.setStrokeWidth(2.5f * d);
-        frame.setColor(c.getColor(R.color.gold));
-        dotFill.setColor(c.getColor(R.color.gold_hi));
+        frame.setColor(ThemeUtils.accent(c));
+        dotFill.setColor(ThemeUtils.accentHi(c));
         dotRing.setStyle(Paint.Style.STROKE);
         dotRing.setStrokeWidth(2f * d);
         dotRing.setColor(c.getColor(R.color.pi));   // borde oscuro: se ve sobre cualquier fondo

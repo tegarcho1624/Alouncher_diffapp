@@ -1,5 +1,11 @@
 <resources>
     <style name="AppTheme" parent="android:Theme.DeviceDefault.NoActionBar">
+        <!-- Color de acento (7B-2): dorado por defecto; ThemeUtils.applyTo() lo cambia -->
+        <item name="alAccent">@color/gold</item>
+        <item name="alAccentHi">@color/gold_hi</item>
+        <item name="alAccentBg">@color/gold_bg</item>
+        <item name="alDropHl">@color/drop_hl</item>
+        <item name="alDropHlLine">@color/drop_hl_line</item>
         <!-- Fondo de pantalla del sistema detrás de la Home (no requiere permisos) -->
         <item name="android:windowShowWallpaper">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
@@ -11,6 +17,12 @@
 
     <!-- Hojas inferiores (mismo patrón visual que Voltea) -->
     <style name="SheetDialog" parent="android:Theme.DeviceDefault.Dialog.NoActionBar">
+        <!-- Color de acento (7B-2): dorado por defecto; ThemeUtils.applyTo() lo cambia -->
+        <item name="alAccent">@color/gold</item>
+        <item name="alAccentHi">@color/gold_hi</item>
+        <item name="alAccentBg">@color/gold_bg</item>
+        <item name="alDropHl">@color/drop_hl</item>
+        <item name="alDropHlLine">@color/drop_hl_line</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowIsFloating">true</item>
         <item name="android:backgroundDimEnabled">true</item>
@@ -24,9 +36,101 @@
 
     <!-- Pantallas con fondo sólido (no muestran el fondo de pantalla) -->
     <style name="ScreenTheme" parent="android:Theme.DeviceDefault.NoActionBar">
+        <!-- Color de acento (7B-2): dorado por defecto; ThemeUtils.applyTo() lo cambia -->
+        <item name="alAccent">@color/gold</item>
+        <item name="alAccentHi">@color/gold_hi</item>
+        <item name="alAccentBg">@color/gold_bg</item>
+        <item name="alDropHl">@color/drop_hl</item>
+        <item name="alDropHlLine">@color/drop_hl_line</item>
         <item name="android:windowBackground">@color/bg</item>
         <item name="android:statusBarColor">@color/bg</item>
         <item name="android:navigationBarColor">@color/bg</item>
         <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <!-- Superposiciones del color de acento, en el orden de ThemeUtils.ACCENT_COLORS (7B-2) -->
+    <style name="AccentOverlay0"> <!-- Dorado -->
+        <item name="alAccent">#FFC9A24B</item>
+        <item name="alAccentHi">#FFE2BD67</item>
+        <item name="alAccentBg">#1FC9A24B</item>
+        <item name="alDropHl">#33C9A24B</item>
+        <item name="alDropHlLine">#99C9A24B</item>
+    </style>
+    <style name="AccentOverlay1"> <!-- Amarillo -->
+        <item name="alAccent">#FFE0C23C</item>
+        <item name="alAccentHi">#FFE6CF66</item>
+        <item name="alAccentBg">#1FE0C23C</item>
+        <item name="alDropHl">#33E0C23C</item>
+        <item name="alDropHlLine">#99E0C23C</item>
+    </style>
+    <style name="AccentOverlay2"> <!-- Naranja -->
+        <item name="alAccent">#FFE08A3C</item>
+        <item name="alAccentHi">#FFE6A366</item>
+        <item name="alAccentBg">#1FE08A3C</item>
+        <item name="alDropHl">#33E08A3C</item>
+        <item name="alDropHlLine">#99E08A3C</item>
+    </style>
+    <style name="AccentOverlay3"> <!-- Rojo -->
+        <item name="alAccent">#FFD6564F</item>
+        <item name="alAccentHi">#FFDF7B75</item>
+        <item name="alAccentBg">#1FD6564F</item>
+        <item name="alDropHl">#33D6564F</item>
+        <item name="alDropHlLine">#99D6564F</item>
+    </style>
+    <style name="AccentOverlay4"> <!-- Rosa -->
+        <item name="alAccent">#FFD46A9E</item>
+        <item name="alAccentHi">#FFDD8AB3</item>
+        <item name="alAccentBg">#1FD46A9E</item>
+        <item name="alDropHl">#33D46A9E</item>
+        <item name="alDropHlLine">#99D46A9E</item>
+    </style>
+    <style name="AccentOverlay5"> <!-- Morado -->
+        <item name="alAccent">#FFA17BD6</item>
+        <item name="alAccentHi">#FFB598DF</item>
+        <item name="alAccentBg">#1FA17BD6</item>
+        <item name="alDropHl">#33A17BD6</item>
+        <item name="alDropHlLine">#99A17BD6</item>
+    </style>
+    <style name="AccentOverlay6"> <!-- Azul -->
+        <item name="alAccent">#FF5B92DB</item>
+        <item name="alAccentHi">#FF7FA9E2</item>
+        <item name="alAccentBg">#1F5B92DB</item>
+        <item name="alDropHl">#335B92DB</item>
+        <item name="alDropHlLine">#995B92DB</item>
+    </style>
+    <style name="AccentOverlay7"> <!-- Cian -->
+        <item name="alAccent">#FF45B5CC</item>
+        <item name="alAccentHi">#FF6DC5D7</item>
+        <item name="alAccentBg">#1F45B5CC</item>
+        <item name="alDropHl">#3345B5CC</item>
+        <item name="alDropHlLine">#9945B5CC</item>
+    </style>
+    <style name="AccentOverlay8"> <!-- Turquesa -->
+        <item name="alAccent">#FF3FB59B</item>
+        <item name="alAccentHi">#FF69C5B1</item>
+        <item name="alAccentBg">#1F3FB59B</item>
+        <item name="alDropHl">#333FB59B</item>
+        <item name="alDropHlLine">#993FB59B</item>
+    </style>
+    <style name="AccentOverlay9"> <!-- Verde -->
+        <item name="alAccent">#FF6FBA64</item>
+        <item name="alAccentHi">#FF8EC986</item>
+        <item name="alAccentBg">#1F6FBA64</item>
+        <item name="alDropHl">#336FBA64</item>
+        <item name="alDropHlLine">#996FBA64</item>
+    </style>
+    <style name="AccentOverlay10"> <!-- Lima -->
+        <item name="alAccent">#FFA8C44F</item>
+        <item name="alAccentHi">#FFBBD075</item>
+        <item name="alAccentBg">#1FA8C44F</item>
+        <item name="alDropHl">#33A8C44F</item>
+        <item name="alDropHlLine">#99A8C44F</item>
+    </style>
+    <style name="AccentOverlay11"> <!-- Plata -->
+        <item name="alAccent">#FFB9B3A6</item>
+        <item name="alAccentHi">#FFC8C3B9</item>
+        <item name="alAccentBg">#1FB9B3A6</item>
+        <item name="alDropHl">#33B9B3A6</item>
+        <item name="alDropHlLine">#99B9B3A6</item>
     </style>
 </resources>

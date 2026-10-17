@@ -47,7 +47,7 @@ final class UiKit {
     /** Botón alternable: encendido = dorado (borde dorado + texto claro + relleno tenue); apagado = apagado. */
     static void styleToggle(TextView t, boolean on) {
         t.setBackgroundResource(on ? R.drawable.seg_on : R.drawable.seg_off);
-        t.setTextColor(t.getContext().getColor(on ? R.color.gold_hi : R.color.mut));
+        t.setTextColor(on ? ThemeUtils.accentHi(t.getContext()) : t.getContext().getColor(R.color.mut));
         t.setSelected(on);
     }
 
@@ -56,7 +56,7 @@ final class UiKit {
             TextView t = (TextView) box.getChildAt(i);
             boolean on = i == selected;
             t.setBackgroundResource(on ? R.drawable.seg_on : R.drawable.seg_off);
-            t.setTextColor(box.getContext().getColor(on ? R.color.gold_hi : R.color.mut));
+            t.setTextColor(on ? ThemeUtils.accentHi(box.getContext()) : box.getContext().getColor(R.color.mut));
         }
     }
 }

@@ -59,6 +59,7 @@ public class FontsActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeUtils.applyTo(this); // 7B-2: color de acento elegido
         FontManager.init(this);
 
         LinearLayout root = new LinearLayout(this);
@@ -144,7 +145,7 @@ public class FontsActivity extends Activity {
     private ImageView iconButton(int res, String description) {
         ImageView b = new ImageView(this);
         b.setImageResource(res);
-        b.setColorFilter(getColor(R.color.gold_hi)); // acento de Alouncher
+        b.setColorFilter(ThemeUtils.accentHi(this)); // acento de Alouncher
         b.setScaleType(ImageView.ScaleType.CENTER);
         b.setBackgroundResource(R.drawable.item_bg);
         b.setContentDescription(description);

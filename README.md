@@ -1,4 +1,4 @@
-# Alouncher (Fase 7B-1)
+# Alouncher (Fase 7B-2)
 
 Fase 1: grid de 4 columnas, toque = abrir, pulsación larga = menú.
 Fase 2: personalización por entrada del launcher (ícono, nombre, ocultar, restaurar).
@@ -153,3 +153,19 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
   repinta cada página al volver a enlazarla) y casita de las tarjetas del modo edición.
 - Sin cambios en menús, hojas, cajón, carpetas, widgets, fondos ni fuentes: siguen leyendo gold / gold_hi de colors.xml (parte 2).
 - cell_bg.xml sigue existiendo: solo lo usa ya WidgetsActivity.
+
+## Fase 7B-2 (color de acento en todo el launcher)
+- Dos caminos, los dos desde ThemeUtils y el mismo color guardado ("settings" / "accent"):
+  1. Código Java: ThemeUtils.accent() / accentHi() / accentBg() / dropHl() / dropHlLine() sustituyen a gold, gold_hi, gold_bg, drop_hl y
+     drop_hl_line (marcos y puntos de redimensionar carpetas y widgets, mover widgets, borde de carpeta arrastrada, selección de color de
+     carpeta, textos activos de Fondos/Listas/Fuentes/segmentos, volumen de la lista, resaltado de selección de texto).
+  2. Drawables XML (menús, hojas, filas, botones, pestañas, tarjetas de páginas, íconos): ya no usan @color/gold* ni #E2BD67 sino
+     ?attr/alAccent, alAccentHi, alAccentBg, alDropHl y alDropHlLine (res/values/attrs.xml). Los 3 temas (AppTheme, ScreenTheme,
+     SheetDialog) traen el dorado por defecto y ThemeUtils.applyTo(this), llamado en el onCreate de cada Activity justo después de
+     super.onCreate, superpone el estilo AccentOverlay0..11 del color elegido (mismo orden que ThemeUtils.ACCENT_COLORS).
+- Si cambias la paleta: editar ACCENT_COLORS y ACCENT_HI en ThemeUtils y los 12 estilos AccentOverlay de styles.xml (mismo orden).
+- Tiempo real: al elegir un color, HomeSettingsActivity se recrea (recreate) y, al volver, MainActivity detecta ThemeUtils.version()
+  distinto en onResume y también se recrea. Las demás pantallas (Fondos, Widgets, Fuentes, Listas) se abren de nuevo con el color.
+- Sin cambios de lógica en menús, cajón, carpetas ni widgets. Fondo oscuro, textos claros/grises y botones crema (paper) siguen igual.
+- Quedan en dorado a propósito: el ícono del launcher (ic_fg) y el color dorado de la paleta de fondos de carpeta (FOLDER_COLORS),
+  que es una opción de color de fondo, no el acento.

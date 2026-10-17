@@ -15,6 +15,7 @@ public class ComingSoonActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeUtils.applyTo(this); // 7B-2: color de acento elegido
         FontManager.init(this);
 
         LinearLayout root = new LinearLayout(this);

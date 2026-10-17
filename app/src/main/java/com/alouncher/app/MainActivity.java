@@ -327,6 +327,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeUtils.applyTo(this); // 7B-2: color de acento elegido
         FontManager.init(this);
         setContentView(R.layout.activity_main);
         store = new CustomizationStore(this);
@@ -426,7 +427,7 @@ public class MainActivity extends Activity {
         grid.setAdapter(adapter);
 
         // Buscador del cajón: filtra en tiempo real mientras se escribe
-        drawerSearch.setHighlightColor(getColor(R.color.gold_bg));
+        drawerSearch.setHighlightColor(ThemeUtils.accentBg(this));
         drawerSearch.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) { }
@@ -498,6 +499,10 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         resumed = true;
+        if (accentApplied != ThemeUtils.version()) { // 7B-2: cambió el acento en los ajustes; se reconstruye con el tema nuevo
+            recreate();
+            return;
+        }
         // Primero se vuelven a leer listas y ajustes (video y audio) y DESPUÉS se reanuda nada
         if (bgApplied != BackgroundStore.version()) applyBackgrounds();
         syncVideoPlayback();
@@ -507,7 +512,6 @@ public class MainActivity extends Activity {
             adapter.notifyDataSetChanged(); // nombres del cajón
             renderHome();                   // nombres de la Home
         }
-        if (accentApplied != ThemeUtils.version()) applyAccent(true); // cambió en "Configuración de pantalla principal"
     }
 
     /**
@@ -1296,7 +1300,7 @@ public class MainActivity extends Activity {
         TextView label = item.findViewById(R.id.label);
         icon.setImageResource(R.drawable.ic_add_tile);
         label.setText(R.string.anadir_app);
-        label.setTextColor(getColor(R.color.gold_hi));
+        label.setTextColor(ThemeUtils.accentHi(this));
         item.setContentDescription(getString(R.string.anadir_app));
         item.setOnClickListener(v -> startPickForFolder(folderId));
         return item;
@@ -1698,7 +1702,7 @@ public class MainActivity extends Activity {
         et.setFilters(new InputFilter[]{new InputFilter.LengthFilter(40)});
         et.setTextColor(getColor(R.color.ink));
         et.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-        et.setHighlightColor(getColor(R.color.gold_bg));
+        et.setHighlightColor(ThemeUtils.accentBg(this));
         et.setBackgroundResource(R.drawable.input_bg);
         et.setMinHeight(dp(44));
         et.setPadding(dp(14), dp(10), dp(14), dp(10));
@@ -1881,7 +1885,7 @@ public class MainActivity extends Activity {
             android.graphics.drawable.GradientDrawable dot = new android.graphics.drawable.GradientDrawable();
             dot.setShape(android.graphics.drawable.GradientDrawable.OVAL);
             dot.setColor(color);
-            dot.setStroke(dp(current ? 3 : 1), getColor(current ? R.color.gold_hi : R.color.ln2));
+            dot.setStroke(dp(current ? 3 : 1), current ? ThemeUtils.accentHi(this) : getColor(R.color.ln2));
 
             View swatch = new View(this);
             swatch.setBackground(dot);
@@ -3608,7 +3612,7 @@ public class MainActivity extends Activity {
         et.setFilters(new InputFilter[]{new InputFilter.LengthFilter(60)});
         et.setTextColor(getColor(R.color.ink));
         et.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-        et.setHighlightColor(getColor(R.color.gold_bg));
+        et.setHighlightColor(ThemeUtils.accentBg(this));
         et.setBackgroundResource(R.drawable.input_bg);
         et.setMinHeight(dp(44));
         et.setPadding(dp(14), dp(10), dp(14), dp(10));

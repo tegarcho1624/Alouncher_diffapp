@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Color de acento (Fase 7B-2). Los temas traen el dorado; ThemeUtils.applyTo() superpone el color elegido
+         (estilos AccentOverlay0..11). Los drawables leen estos atributos con ?attr/... -->
+    <attr name="alAccent" format="color" />
+    <attr name="alAccentHi" format="color" />
+    <attr name="alAccentBg" format="color" />
+    <attr name="alDropHl" format="color" />
+    <attr name="alDropHlLine" format="color" />
+</resources>

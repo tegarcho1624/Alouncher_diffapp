@@ -26,6 +26,7 @@ public class BackgroundsActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeUtils.applyTo(this); // 7B-2: color de acento elegido
         FontManager.init(this);
 
         root = new LinearLayout(this);
@@ -192,7 +193,7 @@ public class BackgroundsActivity extends Activity {
         btn.setOnClickListener(click);
         TextView label = new TextView(this);
         label.setText(R.string.elegir);
-        label.setTextColor(getColor(enabled ? R.color.gold_hi : R.color.mut));
+        label.setTextColor(enabled ? ThemeUtils.accentHi(this) : getColor(R.color.mut));
         label.setTextSize(13);
         label.setLetterSpacing(0.08f);
         label.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
