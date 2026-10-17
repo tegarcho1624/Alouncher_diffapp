@@ -592,7 +592,7 @@ public class PlaylistActivity extends Activity {
             boolean current = it.id.equals(pl.cur);
             h.row.setSelected(current);
             h.name.setText(it.name);
-            h.name.setTextColor(current ? ThemeUtils.accentHi(this) : getColor(R.color.ink));
+            h.name.setTextColor(current ? ThemeUtils.accentHi(PlaylistActivity.this) : getColor(R.color.ink));
             h.meta.setText(metaOf(it));
 
             // Audio: ▶/⏸ en el actual; resto de tipos: palomita
