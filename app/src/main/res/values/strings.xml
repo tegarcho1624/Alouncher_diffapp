@@ -178,6 +178,15 @@
     <string name="elegir_imagen_dispositivo">Elegir imagen del dispositivo</string>
     <string name="color_solido">Color sólido</string>
     <string name="elegir_color">Elige un color</string>
+    <string name="anadir_color">Añadir color</string>
+    <string name="hex_placeholder">#FFFFFF</string>
+    <string name="agregar">Agregar</string>
+    <string name="hex_invalido">Código no válido. Usa 6 dígitos hexadecimales (0-9, A-F), por ejemplo #FF5733.</string>
+    <string name="color_ya_basico">Ese color ya está entre los básicos</string>
+    <string name="color_ya_guardado">Ese color ya está guardado</string>
+    <string name="sin_colores_personalizados">Aún no hay colores personalizados</string>
+    <string name="mantener_eliminar_color">Mantén presionado un color personalizado para eliminarlo</string>
+    <string name="confirmar_eliminar_color">¿Deseas eliminar este color?</string>
     <string name="redimensionar">Redimensionar</string>
     <string name="mover">Mover</string>
     <string name="mover_ayuda">Arrastra el widget a un lugar libre</string>

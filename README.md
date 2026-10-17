@@ -1,4 +1,4 @@
-# Alouncher (Fase 7B-2)
+# Alouncher (Fase 7C-1)
 
 Fase 1: grid de 4 columnas, toque = abrir, pulsación larga = menú.
 Fase 2: personalización por entrada del launcher (ícono, nombre, ocultar, restaurar).
@@ -169,3 +169,22 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
 - Sin cambios de lógica en menús, cajón, carpetas ni widgets. Fondo oscuro, textos claros/grises y botones crema (paper) siguen igual.
 - Quedan en dorado a propósito: el ícono del launcher (ic_fg) y el color dorado de la paleta de fondos de carpeta (FOLDER_COLORS),
   que es una opción de color de fondo, no el acento.
+
+## Fase 7C-1 (colores de acento personalizados)
+- El selector de "Color de acento" (HomeSettingsActivity.showAccentSheet) sigue con los 12 círculos básicos y añade debajo, separada por
+  una línea, la sección "Añadir color": campo de texto (placeholder #FFFFFF, mayúsculas, máx. 7 caracteres) y botón "Agregar".
+  Debajo del campo se muestran los colores personalizados como círculos (mismo diseño que los básicos, 4 por fila). El cuerpo de la hoja ya
+  es desplazable (BottomSheet, máx. 50 % de la pantalla), así que con muchos colores no se corta.
+- Validación (ThemeUtils.parseHex): se agrega "#" si falta; solo vale exactamente # + 6 dígitos 0-9/A-F. Si no es válido, aparece un texto
+  rojo bajo el campo y no se guarda nada (se esconde al volver a escribir). Si el color ya es uno de los 12 básicos o ya estaba guardado,
+  también avisa en rojo y no lo duplica. El nuevo color queda el primero de la lista.
+- Tocar un color personalizado lo aplica igual que un básico (mismo camino: setAccent + recreate). Mantener presionado un personalizado
+  (los básicos no) abre "¿Deseas eliminar este color?" con "Sí" (rojo) y "No". "Sí" lo quita de la lista y del diálogo. Si era el color
+  aplicado, el launcher vuelve al dorado (primero setAccent(DEFAULT_ACCENT) para que suba la versión y se recree la Home, luego removeCustom).
+- Persistencia: SharedPreferences "settings", clave "accent_custom", texto "RRGGBB,RRGGBB,..." (el más nuevo primero). ThemeUtils guarda
+  una copia en memoria; accent() acepta el color guardado si es de la paleta o está en esta lista (si no, el dorado).
+- accentHi() de un color personalizado = el color mezclado un 22 % con blanco (igual que el resto de la paleta, salvo el dorado).
+- LIMITACIÓN (se corrige en la 7C-2): el código Java usa el color EXACTO, pero los drawables XML (?attr/alAccent...) solo pueden leer uno de
+  los 12 estilos AccentOverlay; con un color personalizado toman el básico más cercano (ThemeUtils.nearestIndex, distancia RGB).
+- BottomSheet: nuevo resizeForKeyboard() (la hoja se encoge con el teclado, sin abrirlo sola). keyboard() de siempre no cambia.
+- Sin cambios en MainActivity, fondos, fuentes, carpetas ni widgets. Versión 1.0.14 (versionCode 25).

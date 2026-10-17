@@ -23,6 +23,7 @@ final class BottomSheet {
     private final LinearLayout body;
     private final LinearLayout footer;
     private boolean keyboard;
+    private boolean resizeOnly; // hoja con campo de texto que NO abre el teclado sola (7C-1)
     private final TextView titleView;
     private View.OnDragListener windowDrag; // arrastres sobre toda la ventana de la hoja (4E-3)
 
@@ -111,6 +112,9 @@ final class BottomSheet {
     /** Abre el teclado al mostrar la hoja (para formularios). */
     void keyboard() { keyboard = true; }
 
+    /** La hoja se encoge cuando aparece el teclado, pero no lo abre al mostrarse (campo opcional dentro de la hoja). */
+    void resizeForKeyboard() { resizeOnly = true; }
+
     void show() {
         FontManager.apply(sheet);
         dialog.setContentView(sheet);
@@ -125,6 +129,9 @@ final class BottomSheet {
             if (keyboard) {
                 w.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
                         | WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
+            } else if (resizeOnly) {
+                w.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                        | WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
             }
         }
         dialog.setCanceledOnTouchOutside(true);
