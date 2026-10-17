@@ -1369,7 +1369,85 @@ public class MainActivity extends Activity {
             lastDownX = ev.getRawX();
             lastDownY = ev.getRawY();
         }
-        return super.dispatchTouchEvent(ev);
+        boolean openByGesture = trackSwipeUp(ev); // 7A: solo observa el toque, nunca lo consume
+        boolean handled = super.dispatchTouchEvent(ev);
+        if (openByGesture) openDrawer(); // después de que los hijos terminen de recibir el ACTION_UP
+        return handled;
+    }
+
+    // ---- Gesto: deslizar hacia arriba en la Home abre el cajón (Fase 7A) ---------------------
+    // Se observa desde dispatchTouchEvent (llega ANTES que los hijos), así que no interfiere con el
+    // desplazamiento de las páginas, los widgets, las apps ni el arrastre: nunca consume el toque.
+
+    private static final float SWIPE_UP_MIN_FRACTION = 0.20f;   // distancia mínima: 20 % del alto de la Home
+    private static final float SWIPE_UP_VERTICAL_RATIO = 1.5f;  // "predominantemente vertical": subir >= 1.5 × lo horizontal
+    private static final float SWIPE_UP_ZONE_TOP = 0f;          // dónde puede EMPEZAR (fracción del alto): 0 = cualquier lugar, 0.5 = mitad inferior
+    private boolean swipeArmed;          // el toque en curso empezó en un lugar válido
+    private float swipeDownX, swipeDownY;
+
+    /** @return true solo en el ACTION_UP de un deslizamiento hacia arriba válido (hay que abrir el cajón). */
+    private boolean trackSwipeUp(MotionEvent ev) {
+        switch (ev.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                swipeDownX = ev.getRawX();
+                swipeDownY = ev.getRawY();
+                swipeArmed = swipeStartAllowed(swipeDownX, swipeDownY);
+                return false;
+            case MotionEvent.ACTION_POINTER_DOWN:
+                swipeArmed = false; // dos dedos: no es este gesto
+                return false;
+            case MotionEvent.ACTION_MOVE:
+                // Las páginas se están desplazando de lado: ese toque ya es de ellas
+                if (swipeArmed && pager.getScrollState() == RecyclerView.SCROLL_STATE_DRAGGING) swipeArmed = false;
+                return false;
+            case MotionEvent.ACTION_CANCEL: // p. ej. empezó un arrastre de app o la pulsación larga
+                swipeArmed = false;
+                return false;
+            case MotionEvent.ACTION_UP: {
+                boolean armed = swipeArmed;
+                swipeArmed = false;
+                if (!armed || !homeSwipeReady()) return false; // pudo abrirse un menú o el modo edición a mitad del toque
+                if (pager.getScrollState() == RecyclerView.SCROLL_STATE_DRAGGING) return false;
+                float up = swipeDownY - ev.getRawY();          // positivo = hacia arriba
+                float side = Math.abs(ev.getRawX() - swipeDownX);
+                int h = homeLayer.getHeight();
+                if (h <= 0) h = getResources().getDisplayMetrics().heightPixels;
+                return up >= h * SWIPE_UP_MIN_FRACTION && up >= side * SWIPE_UP_VERTICAL_RATIO;
+            }
+            default:
+                return false;
+        }
+    }
+
+    /** La Home está sola a la vista: sin cajón, modo edición, mover/redimensionar ni menú abierto. */
+    private boolean homeSwipeReady() {
+        return resumed
+                && !drawerOpen
+                && drawerLayer.getVisibility() != View.VISIBLE // el cajón aún no terminó de cerrarse
+                && !editMode
+                && moveOverlay == null
+                && resizeOverlay == null
+                && menu == null;
+    }
+
+    /** ¿Puede empezar aquí el gesto? No sobre un widget (sus toques son suyos) ni fuera de la zona de inicio. */
+    private boolean swipeStartAllowed(float rawX, float rawY) {
+        if (!homeSwipeReady()) return false;
+        if (SWIPE_UP_ZONE_TOP > 0f) {
+            int[] o = new int[2];
+            homeLayer.getLocationOnScreen(o);
+            if (rawY - o[1] < homeLayer.getHeight() * SWIPE_UP_ZONE_TOP) return false;
+        }
+        int[] loc = new int[2];
+        for (AppWidgetHostView hv : widgetViews.values()) {
+            if (!hv.isAttachedToWindow() || !hv.isShown()) continue;
+            hv.getLocationOnScreen(loc);
+            if (rawX >= loc[0] && rawX < loc[0] + hv.getWidth()
+                    && rawY >= loc[1] && rawY < loc[1] + hv.getHeight()) {
+                return false; // el dedo bajó sobre un widget
+            }
+        }
+        return true;
     }
 
     /** La app de la carpeta grande que está bajo el último toque, o null (= el toque fue en la carpeta, no en una app). */

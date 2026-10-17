@@ -1,4 +1,4 @@
-# Alouncher (Fase 6B-5)
+# Alouncher (Fase 7A)
 
 Fase 1: grid de 4 columnas, toque = abrir, pulsación larga = menú.
 Fase 2: personalización por entrada del launcher (ícono, nombre, ocultar, restaurar).
@@ -123,3 +123,18 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
   (sus celdas quedan libres y no se restaura al reiniciar) y renderHome() llama a pruneWidgetViews(), que saca la vista de la Home
   y libera el id con AppWidgetHost.deleteAppWidgetId(). No se añadió código de host nuevo: es el mismo camino que ya usaba
   la eliminación de páginas con widgets.
+
+## Fase 7A (gesto: deslizar hacia arriba abre el cajón)
+- En la Home, deslizar el dedo hacia arriba abre el cajón de apps con la misma animación que el botón del dock
+  (el gesto llama a MainActivity.openDrawer(), igual que el botón, que sigue funcionando igual).
+- Se detecta en MainActivity.dispatchTouchEvent (llega antes que las páginas, los widgets y las apps) y solo OBSERVA:
+  nunca consume el toque, así que no interfiere con el desplazamiento de páginas, pulsaciones largas ni arrastres.
+  Se calcula la diferencia entre ACTION_DOWN y ACTION_UP (trackSwipeUp).
+- Condiciones: subir al menos el 20 % del alto de la Home y que el movimiento sea predominantemente vertical
+  (subir >= 1.5 × lo desplazado de lado). Si las páginas se están desplazando de lado, no se abre.
+- No se activa: si el dedo bajó sobre un widget, con dos dedos, si el toque se cancela (empieza un arrastre de app o carpeta),
+  con el cajón abierto, en modo edición, en los modos Mover/Redimensionar o con un menú abierto.
+- Constantes ajustables (MainActivity): SWIPE_UP_MIN_FRACTION (0.20), SWIPE_UP_VERTICAL_RATIO (1.5) y SWIPE_UP_ZONE_TOP
+  (0 = el gesto puede empezar en cualquier parte de la Home; 0.5 = solo desde la mitad inferior).
+- Funciona en vertical y horizontal (el alto se lee de la Home en cada gesto; la actividad no bloquea la orientación).
+- Sin permisos nuevos y sin cambios en cajón, dock, páginas, carpetas, widgets ni fondos.
