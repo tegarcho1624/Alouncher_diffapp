@@ -662,6 +662,33 @@ final class HomeStore {
         return true;
     }
 
+    /**
+     * 6B-4: ¿cabe el widget con este rectángulo (esquina superior izquierda + tamaño) en su misma página?
+     * Sus propias celdas actuales cuentan como libres; apps, carpetas y otros widgets, no. Fuera del grid: no.
+     */
+    synchronized boolean canPlaceWidget(int id, int row, int col, int w, int h) {
+        Widget wd = widgets.get(id);
+        if (wd == null || w < 1 || h < 1 || row < 0 || col < 0 || row + h > HOME_ROWS || col + w > HOME_COLS) return false;
+        for (int r = row; r < row + h; r++) {
+            for (int c = col; c < col + w; c++) {
+                if (instanceAt(false, wd.page, r, c) != null) return false;
+                if (folderAtRaw(wd.page, r, c) != null) return false;
+                Widget other = widgetAtRaw(wd.page, r, c);
+                if (other != null && other.id != id) return false;
+            }
+        }
+        return true;
+    }
+
+    /** 6B-4: cambia el rectángulo de un widget ya colocado (misma página) y lo guarda. false (sin cambios) si no cabe. */
+    synchronized boolean resizeWidget(int id, int row, int col, int w, int h) {
+        if (!canPlaceWidget(id, row, col, w, h)) return false;
+        Widget wd = widgets.get(id);
+        widgets.put(id, new Widget(id, wd.page, row, col, w, h, wd.provider));
+        save();
+        return true;
+    }
+
     /** Quita el registro de un widget que no se pudo restaurar (sus celdas quedan libres). No hay menú de usuario para esto (6B-5). */
     synchronized boolean removeWidget(int id) {
         if (widgets.remove(id) == null) return false;

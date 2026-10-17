@@ -1003,6 +1003,9 @@ public class MainActivity extends Activity {
 
     private FolderResizeOverlay resizeOverlay;
     private String resizeFolderId;
+    // 6B-4: redimensionar un widget reutiliza la misma capa (resizeOverlay); resizeWidgetId != -1 indica ese modo
+    private int resizeWidgetId = -1;
+    private int rwMinW = 1, rwMaxW = HomeStore.HOME_COLS, rwMinH = 1, rwMaxH = HomeStore.HOME_ROWS;
 
     /** Entra en el modo: marco dorado y 4 puntos sobre la carpeta. Los cambios de tamaño se aplican y guardan al instante. */
     private void enterResizeMode(String folderId) {
@@ -1041,6 +1044,7 @@ public class MainActivity extends Activity {
             resizeOverlay = null;
         }
         resizeFolderId = null;
+        resizeWidgetId = -1;
     }
 
     /** Posición de la cuadrícula de la página actual en coordenadas de la capa (la misma cuenta que targetAt). */
@@ -1066,6 +1070,10 @@ public class MainActivity extends Activity {
      * del grid y SOLO sobre celdas libres (opción B): avanza celda por celda y se detiene en la primera que no cabe.
      */
     private void dragResize(int handle, float x, float y, float gx, float gy) {
+        if (resizeOverlay != null && resizeWidgetId != -1) { // 6B-4: es un widget, no una carpeta
+            dragWidgetResize(handle, x, y, gx, gy);
+            return;
+        }
         if (resizeOverlay == null || resizeFolderId == null) return;
         HomeStore.Folder f = homeStore.folder(resizeFolderId);
         if (f == null) {
@@ -2016,7 +2024,11 @@ public class MainActivity extends Activity {
         syncIndicator();
         homeHint.setVisibility(loaded && shown == 0 ? View.VISIBLE : View.GONE);
         fillFolderBody(); // si hay una carpeta abierta, se actualiza (nombres, íconos, apps desinstaladas)
-        if (resizeOverlay != null) { // modo redimensionar: si la carpeta desapareció, se sale
+        if (resizeOverlay != null && resizeWidgetId != -1) { // 6B-4: modo redimensionar de un widget
+            HomeStore.Widget rw = homeStore.widget(resizeWidgetId);
+            if (rw == null) exitResizeMode();
+            else resizeOverlay.setFolder(rw.row, rw.col, rw.w, rw.h);
+        } else if (resizeOverlay != null) { // modo redimensionar: si la carpeta desapareció, se sale
             HomeStore.Folder rf = resizeFolderId == null ? null : homeStore.folder(resizeFolderId);
             if (rf == null) exitResizeMode();
             else resizeOverlay.setFolder(rf.row, rf.col, rf.w, rf.h);
@@ -2693,8 +2705,6 @@ public class MainActivity extends Activity {
 
     private WidgetMoveOverlay moveOverlay;
     private int moveWidgetId = -1;
-    private int moveOriginIndex;   // índice de la página donde está el widget
-    private int moveIndex;         // índice de la página que se ve durante el arrastre
 
     /** Pulsación larga sobre un widget de la Home: menú del widget. */
     private void onWidgetLongPress(WidgetHostView v) {
@@ -2702,16 +2712,181 @@ public class MainActivity extends Activity {
         showWidgetMenu(v, v.getAppWidgetId());
     }
 
-    /** Menú del widget (mismo estilo que los de apps y carpetas). Redimensionar y Eliminar llegan en 6B-4 y 6B-5. */
+    /** Menú del widget (mismo estilo que los de apps y carpetas). Eliminar llega en 6B-5. */
     private void showWidgetMenu(View anchor, int widgetId) {
         LinearLayout col = newMenuColumn();
         col.addView(menuRow(getString(R.string.mover), () -> enterMoveMode(widgetId)));
-        col.addView(soonRow(getString(R.string.redimensionar)));
+        col.addView(menuRow(getString(R.string.redimensionar), () -> enterWidgetResizeMode(widgetId)));
         col.addView(soonRow(getString(R.string.eliminar)));
         popup(anchor, col);
     }
 
-    /** Entra en el modo: marco dorado sobre el widget; se arrastra y se suelta en celdas libres (de esta u otra página). */
+    // ---- Redimensionar un widget (6B-4) ---------------------------------------------------
+
+    /**
+     * Entra en el modo: la misma capa de las carpetas (marco dorado, 4 puntos, "Listo", tocar fuera sale).
+     * Los límites en celdas salen de AppWidgetProviderInfo (ver computeWidgetLimits).
+     */
+    private void enterWidgetResizeMode(int widgetId) {
+        HomeStore.Widget wd = homeStore.widget(widgetId);
+        if (wd == null || editMode || drawerOpen) return;
+        if (wd.page != homeStore.pageId(currentIndex)) return;
+        exitResizeMode();
+        dismissMenu();
+        dismissSheet();
+
+        FolderResizeOverlay ov = new FolderResizeOverlay(this);
+        ov.setListener(new FolderResizeOverlay.Listener() {
+            @Override public void onDrag(int handle, float x, float y, float gx, float gy) {
+                dragResize(handle, x, y, gx, gy);
+            }
+
+            @Override public void onExit() {
+                exitResizeMode();
+            }
+
+            @Override public void onSize() {
+                ui.post(() -> computeResizeGeometry());
+            }
+        });
+        ((FrameLayout) homeLayer).addView(ov, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        resizeOverlay = ov;
+        resizeFolderId = null;
+        resizeWidgetId = widgetId;
+        ov.setFolder(wd.row, wd.col, wd.w, wd.h);
+        if (!computeResizeGeometry()) {
+            exitResizeMode();
+            return;
+        }
+        computeWidgetLimits(wd);
+        if (rwMaxW <= rwMinW && rwMaxH <= rwMinH) { // el proveedor no permite cambiar su tamaño
+            exitResizeMode();
+            toast(R.string.widget_no_redimensiona);
+            return;
+        }
+        ov.setHandles(rwMaxW > rwMinW, rwMaxH > rwMinH); // sin puntos en el eje que no se puede cambiar
+    }
+
+    /**
+     * Mínimo y máximo del widget en celdas, según lo que declara su proveedor:
+     *  - mínimo: minResizeWidth/Height (si no hay o es mayor que minWidth/Height, estos últimos), nunca menos de 1x1;
+     *  - máximo: maxResizeWidth/Height (Android 12+); si no hay, el tamaño del grid (6x4);
+     *  - resizeMode: un eje sin RESIZE_HORIZONTAL / RESIZE_VERTICAL queda fijo en su tamaño actual.
+     * Los píxeles se pasan a celdas con la misma cuenta que al colocar (cada celda pierde 3 dp de margen por lado).
+     * Los límites nunca excluyen el tamaño actual (un widget guardado antes no queda fuera de rango).
+     */
+    private void computeWidgetLimits(HomeStore.Widget wd) {
+        int minW = 1, minH = 1, maxW = HomeStore.HOME_COLS, maxH = HomeStore.HOME_ROWS;
+        boolean canH = true, canV = true;
+        AppWidgetProviderInfo info = null;
+        try {
+            info = widgetManager.getAppWidgetInfo(wd.id);
+        } catch (Exception ignored) {
+            // sin datos del proveedor: solo rigen el grid y las celdas libres
+        }
+        float cw = resizeOverlay == null ? 0 : resizeOverlay.cellWidth();
+        float ch = resizeOverlay == null ? 0 : resizeOverlay.cellHeight();
+        if (info != null && cw > 0 && ch > 0) {
+            int pad = dp(6);
+            int mw = info.minWidth;
+            int mh = info.minHeight;
+            if (info.minResizeWidth > 0 && info.minResizeWidth <= mw) mw = info.minResizeWidth;
+            if (info.minResizeHeight > 0 && info.minResizeHeight <= mh) mh = info.minResizeHeight;
+            if (mw > 0) minW = (int) Math.ceil((mw + pad) / cw);
+            if (mh > 0) minH = (int) Math.ceil((mh + pad) / ch);
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                if (info.maxResizeWidth > 0) maxW = (int) Math.floor((info.maxResizeWidth + pad) / cw);
+                if (info.maxResizeHeight > 0) maxH = (int) Math.floor((info.maxResizeHeight + pad) / ch);
+            }
+            int mode = info.resizeMode;
+            canH = (mode & AppWidgetProviderInfo.RESIZE_HORIZONTAL) != 0;
+            canV = (mode & AppWidgetProviderInfo.RESIZE_VERTICAL) != 0;
+        }
+        minW = Math.min(Math.max(1, minW), wd.w);
+        minH = Math.min(Math.max(1, minH), wd.h);
+        maxW = Math.max(Math.min(HomeStore.HOME_COLS, maxW), wd.w);
+        maxH = Math.max(Math.min(HomeStore.HOME_ROWS, maxH), wd.h);
+        if (!canH) { minW = wd.w; maxW = wd.w; }
+        if (!canV) { minH = wd.h; maxH = wd.h; }
+        rwMinW = minW;
+        rwMaxW = maxW;
+        rwMinH = minH;
+        rwMaxH = maxH;
+    }
+
+    /**
+     * Arrastre de un punto sobre un widget: igual que con las carpetas (el borde sigue al dedo ajustado a la cuadrícula,
+     * celda por celda, y se detiene en la primera celda ocupada), pero entre el mínimo y el máximo del widget.
+     * Cada cambio se guarda en home_layout y la vista recibe su nuevo tamaño (trackWidgetSize avisa al proveedor).
+     */
+    private void dragWidgetResize(int handle, float x, float y, float gx, float gy) {
+        HomeStore.Widget wd = homeStore.widget(resizeWidgetId);
+        if (wd == null) {
+            exitResizeMode();
+            return;
+        }
+        float cw = resizeOverlay.cellWidth();
+        float ch = resizeOverlay.cellHeight();
+        if (cw <= 0 || ch <= 0) return;
+        int row = wd.row, col = wd.col, w = wd.w, h = wd.h;
+
+        int tRow = row, tCol = col, tW = w, tH = h;
+        switch (handle) {
+            case FolderResizeOverlay.RIGHT: {
+                int line = Math.round((x - gx - resizeOverlay.gridLeft()) / cw);
+                tW = Math.max(rwMinW, Math.min(Math.min(rwMaxW, HomeStore.HOME_COLS - col), line - col));
+                break;
+            }
+            case FolderResizeOverlay.LEFT: {
+                int right = col + w;
+                int line = Math.round((x - gx - resizeOverlay.gridLeft()) / cw);
+                tCol = Math.max(Math.max(0, right - rwMaxW), Math.min(right - rwMinW, line));
+                tW = right - tCol;
+                break;
+            }
+            case FolderResizeOverlay.BOTTOM: {
+                int line = Math.round((y - gy - resizeOverlay.gridTop()) / ch);
+                tH = Math.max(rwMinH, Math.min(Math.min(rwMaxH, HomeStore.HOME_ROWS - row), line - row));
+                break;
+            }
+            default: { // TOP
+                int bottom = row + h;
+                int line = Math.round((y - gy - resizeOverlay.gridTop()) / ch);
+                tRow = Math.max(Math.max(0, bottom - rwMaxH), Math.min(bottom - rwMinH, line));
+                tH = bottom - tRow;
+                break;
+            }
+        }
+
+        boolean changed = false;
+        while (row != tRow || col != tCol || w != tW || h != tH) {
+            int nRow = row, nCol = col, nW = w, nH = h;
+            if (w != tW) {
+                int step = tW > w ? 1 : -1;
+                nW = w + step;
+                if (handle == FolderResizeOverlay.LEFT) nCol = col - step;
+            } else if (h != tH) {
+                int step = tH > h ? 1 : -1;
+                nH = h + step;
+                if (handle == FolderResizeOverlay.TOP) nRow = row - step;
+            } else {
+                break;
+            }
+            if (!homeStore.canPlaceWidget(resizeWidgetId, nRow, nCol, nW, nH)) break; // no cabe: se queda aquí
+            row = nRow;
+            col = nCol;
+            w = nW;
+            h = nH;
+            changed = true;
+        }
+        if (changed && homeStore.resizeWidget(resizeWidgetId, row, col, w, h)) {
+            resizeOverlay.setFolder(row, col, w, h); // el marco y los puntos siguen al borde
+            renderHome(); // el widget se redibuja al nuevo tamaño en tiempo real
+        }
+    }
+
+    /** Entra en el modo: marco dorado sobre el widget; se arrastra y se suelta en celdas libres de esta misma página. */
     private void enterMoveMode(int widgetId) {
         HomeStore.Widget wd = homeStore.widget(widgetId);
         AppWidgetHostView hv = widgetViews.get(widgetId);
@@ -2720,28 +2895,12 @@ public class MainActivity extends Activity {
         exitMoveMode();
         dismissMenu();
         dismissSheet();
-        moveOriginIndex = currentIndex;
-        moveIndex = currentIndex;
 
         WidgetMoveOverlay ov = new WidgetMoveOverlay(this, dp(3)); // mismo margen de celda que FolderLayer
         ov.setListener(new WidgetMoveOverlay.Listener() {
             @Override public boolean canDrop(int row, int col) {
-                return moveIndex >= 0 && moveIndex < homeStore.pageCount()
-                        && homeStore.canMoveWidget(widgetId, homeStore.pageId(moveIndex), row, col);
-            }
-
-            @Override public boolean canEdge(int dir) {
-                int t = moveIndex + dir;
-                return t >= 0 && t < homeStore.pageCount();
-            }
-
-            @Override public boolean onEdge(int dir) {
-                int t = moveIndex + dir;
-                if (t < 0 || t >= homeStore.pageCount()) return false;
-                moveIndex = t;
-                goToPage(t, true); // la Home cambia de página, igual que al arrastrar una app
-                if (moveOverlay != null) moveOverlay.setOriginVisible(t == moveOriginIndex);
-                return true;
+                HomeStore.Widget cur = homeStore.widget(widgetId);
+                return cur != null && homeStore.canMoveWidget(widgetId, cur.page, row, col);
             }
 
             @Override public void onDragStart() {
@@ -2750,15 +2909,13 @@ public class MainActivity extends Activity {
             }
 
             @Override public void onDrop(int row, int col) {
-                if (moveIndex >= 0 && moveIndex < homeStore.pageCount()) {
-                    homeStore.moveWidget(widgetId, homeStore.pageId(moveIndex), row, col); // se guarda en home_layout
-                }
+                HomeStore.Widget cur = homeStore.widget(widgetId);
+                if (cur != null) homeStore.moveWidget(widgetId, cur.page, row, col); // se guarda en home_layout
                 exitMoveMode();
                 renderHome();
             }
 
             @Override public void onExit() {
-                if (moveIndex != moveOriginIndex) goToPage(moveOriginIndex, true); // cancelado: vuelve a la página de origen
                 exitMoveMode();
             }
 
@@ -2784,20 +2941,19 @@ public class MainActivity extends Activity {
         moveWidgetId = -1;
     }
 
-    /**
-     * Posición de la cuadrícula en coordenadas de la capa. Se calcula con el carrusel y el relleno de página (los mismos
-     * de newPage), NO con la página actual, para que no se mueva mientras la Home se desliza a otra página.
-     */
+    /** Posición de la cuadrícula de la página actual en coordenadas de la capa (la misma cuenta que el modo Redimensionar). */
     private boolean computeMoveGeometry() {
         if (moveOverlay == null) return false;
+        PageVH h = currentPageHolder();
+        if (h == null) return false;
         int[] a = new int[2];
         int[] b = new int[2];
         homeLayer.getLocationOnScreen(a);
-        pager.getLocationOnScreen(b);
-        float left = b[0] - a[0] + dp(24);
-        float top = b[1] - a[1] + dp(16);
-        float w = pager.getWidth() - dp(24) - dp(24);
-        float hh = pager.getHeight() - dp(16) - dp(PAGE_BOTTOM_PAD_DP);
+        h.root.getLocationOnScreen(b);
+        float left = b[0] - a[0] + h.root.getPaddingLeft();
+        float top = b[1] - a[1] + h.root.getPaddingTop();
+        float w = h.root.getWidth() - h.root.getPaddingLeft() - h.root.getPaddingRight();
+        float hh = h.root.getHeight() - h.root.getPaddingTop() - h.root.getPaddingBottom();
         if (w <= 0 || hh <= 0) return false;
         moveOverlay.setGrid(left, top, w / HomeStore.HOME_COLS, hh / HomeStore.HOME_ROWS);
         return true;

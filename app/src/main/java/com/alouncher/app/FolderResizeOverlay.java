@@ -47,6 +47,7 @@ final class FolderResizeOverlay extends View {
     private float grabX, grabY;
     private boolean downOutside;  // el dedo bajó fuera de la carpeta y de los puntos
     private boolean downOnPill;
+    private boolean hasH = true, hasV = true; // ejes con puntos de control (6B-4)
 
     FolderResizeOverlay(Context c) {
         super(c);
@@ -86,6 +87,17 @@ final class FolderResizeOverlay extends View {
     float cellWidth() { return cellW; }
 
     float cellHeight() { return cellH; }
+
+    /** 6B-4 (widgets): oculta los puntos de un eje que no se puede cambiar. Por defecto los 4 puntos están activos. */
+    void setHandles(boolean horizontal, boolean vertical) {
+        hasH = horizontal;
+        hasV = vertical;
+        invalidate();
+    }
+
+    private boolean handleOn(int handle) {
+        return (handle == TOP || handle == BOTTOM) ? hasV : hasH;
+    }
 
     void setFolder(int row, int col, int w, int h) {
         this.row = row;
@@ -139,6 +151,7 @@ final class FolderResizeOverlay extends View {
 
         float[] c = new float[2];
         for (int hd = 0; hd < 4; hd++) {
+            if (!handleOn(hd)) continue;
             handleCenter(hd, box, c);
             canvas.drawCircle(c[0], c[1] + 1f * d, 12f * d, dotShadow);
             canvas.drawCircle(c[0], c[1], 10f * d, dotFill);
@@ -165,6 +178,7 @@ final class FolderResizeOverlay extends View {
                 float[] c = new float[2];
                 float best = 34f * d;
                 for (int hd = 0; hd < 4; hd++) {
+                    if (!handleOn(hd)) continue;
                     handleCenter(hd, box, c);
                     float dist = (float) Math.hypot(x - c[0], y - c[1]);
                     if (dist <= best) {

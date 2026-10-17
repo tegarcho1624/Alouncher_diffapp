@@ -179,7 +179,7 @@
     <string name="elegir_color">Elige un color</string>
     <string name="redimensionar">Redimensionar</string>
     <string name="mover">Mover</string>
-    <string name="mover_ayuda">Arrastra a un lugar libre; en los bordes cambia de página</string>
+    <string name="mover_ayuda">Arrastra el widget a un lugar libre</string>
     <string name="redimensionar_ayuda">Tamaño en celdas (1 a 3). Crece hacia la derecha y hacia abajo, solo sobre espacio libre.</string>
     <string name="ancho">Ancho</string>
     <string name="alto">Alto</string>
@@ -193,6 +193,7 @@
     <string name="widget_sin_espacio">No hay espacio en la pantalla de inicio</string>
     <string name="widget_no_disponible">Ese widget ya no está disponible</string>
     <string name="widget_no_se_pudo">No se pudo colocar el widget</string>
+    <string name="widget_no_redimensiona">Este widget no se puede redimensionar</string>
     <string name="widget_sin_permiso">Sin autorización no se pueden colocar widgets</string>
     <plurals name="widgets_cantidad">
         <item quantity="one">%d widget</item>

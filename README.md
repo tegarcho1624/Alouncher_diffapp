@@ -1,4 +1,4 @@
-# Alouncher (Fase 6B-2b)
+# Alouncher (Fase 6B-4)
 
 Fase 1: grid de 4 columnas, toque = abrir, pulsación larga = menú.
 Fase 2: personalización por entrada del launcher (ícono, nombre, ocultar, restaurar).
@@ -74,7 +74,7 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
   concede a launchers normales: la primera vez sale el diálogo del sistema (ACTION_APPWIDGET_BIND).
   Los widgets con pantalla de configuración la abren antes de colocarse.
 - Las celdas del widget cuentan como ocupadas en HomeStore (apps y carpetas no se colocan encima).
-- Todavía SIN redimensionar (6B-4) ni quitar (6B-5). (Guardar: ver 6B-3; mover: ver 6B-2.)
+- Redimensionar: ver 6B-4. Todavía SIN quitar (6B-5). (Guardar: ver 6B-3; mover: ver 6B-2.)
 
 ## Fase 6B-3 (persistencia de widgets)
 - Los widgets colocados se guardan en "home_layout" (clave "layout3", lista "widgets"): {"i": appWidgetId, "pk": proveedor "paquete/clase",
@@ -97,7 +97,21 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
   apps, carpetas, otros widgets y todo lo que se salga del grid. Mismo tamaño en celdas.
 - Soltar en lugar válido: la copia se asienta en la celda y HomeStore.moveWidget() guarda la posición (misma lista "widgets" de la 6B-3).
   Soltar en lugar inválido: la copia vuelve a su sitio con una animación corta y se sale del modo. Tocar fuera o "atrás" cancelan.
-- Cambio de página al mover: si el dedo se queda ~0,5 s a menos de 44 dp del borde izquierdo o derecho, la Home pasa a la página
-  vecina (y sigue cada 0,8 s mientras siga en el borde); una franja dorada tenue avisa. El widget se puede soltar en cualquier página
-  existente (no crea páginas nuevas). Si se suelta en un lugar inválido estando en otra página, la Home vuelve a la página de origen.
-- La cuadrícula del modo Mover se calcula con el carrusel y el relleno de página (no con la página visible), para no moverse mientras se desliza.
+- El movimiento es dentro de la página que se está viendo (no cambia de página al llegar al borde).
+
+## Fase 6B-4 (redimensionar widgets)
+- El menú del widget ya activa "Redimensionar" (queda "Eliminar" atenuado, 6B-5). Reutiliza la capa de las carpetas
+  (FolderResizeOverlay): fondo atenuado, marco dorado, 4 puntos en el centro de cada borde, botón "Listo". Salir: tocar fuera
+  del widget, "Listo" o atrás. Solo se añadió setHandles() a la capa para ocultar los puntos de un eje que no se puede cambiar.
+- Arrastrar un punto cambia el tamaño en tiempo real, celda por celda y ajustado a la cuadrícula (MainActivity.dragWidgetResize,
+  misma mecánica que dragResize de carpetas). Opción B: solo crece sobre celdas libres y se detiene en la primera ocupada
+  (HomeStore.canPlaceWidget). Cada cambio se guarda al momento con HomeStore.resizeWidget() en "home_layout" ("widgets": w, h, r, c).
+- Límites (MainActivity.computeWidgetLimits, al entrar en el modo), en celdas, con AppWidgetProviderInfo:
+  mínimo = minResizeWidth/Height (si no hay o superan a minWidth/Height, estos); máximo = maxResizeWidth/Height (Android 12+; en versiones
+  anteriores y en widgets que no lo declaran, el grid 6x4); mínimo absoluto 1x1. Los límites nunca excluyen el tamaño actual.
+  AppWidgetProviderInfo NO tiene "maxWidth/maxHeight": existen solo maxResizeWidth/Height (API 31).
+- resizeMode del proveedor: sin RESIZE_HORIZONTAL el ancho queda fijo; sin RESIZE_VERTICAL, el alto. Si no se puede cambiar ningún eje
+  no se entra en el modo y avisa "Este widget no se puede redimensionar".
+- El widget recibe su nuevo tamaño por trackWidgetSize (ya existía): al cambiar su layout llama a updateAppWidgetSize(min=max=tamaño en dp),
+  así el proveedor puede redibujar su contenido para ese tamaño.
+- Sin cambios en colocar (6B-1), mover (6B-2) ni persistencia (6B-3): el formato guardado es el mismo.
