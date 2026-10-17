@@ -9,7 +9,7 @@ import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
 
-/** Barra horizontal dividida en segmentos (uno por página). Segmento activo en dorado; la principal lleva una casita. */
+/** Barra horizontal dividida en segmentos (uno por página). Segmento activo en el color de acento; la principal lleva una casita. */
 public class PageIndicator extends View {
 
     interface OnSelect {
@@ -39,7 +39,7 @@ public class PageIndicator extends View {
         segW = 40f * density;
         barH = 20f * density;
         fill.setColor(0xB3161310);
-        active.setColor(0xFFC9A24B);
+        active.setColor(ThemeUtils.DEFAULT_ACCENT);
         sep.setColor(0x40F1E9D8);
         sep.setStrokeWidth(density);
         border.setColor(0x33F1E9D8);
@@ -51,6 +51,12 @@ public class PageIndicator extends View {
 
     void setOnSelect(OnSelect l) {
         onSelect = l;
+    }
+
+    /** Color del segmento activo (acento elegido, 7B-1). */
+    void setAccent(int color) {
+        active.setColor(color);
+        invalidate();
     }
 
     void setPages(int count, int main, int current) {

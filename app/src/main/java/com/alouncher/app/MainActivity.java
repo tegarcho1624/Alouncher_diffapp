@@ -22,6 +22,7 @@ import android.graphics.Point;
 import android.graphics.RectF;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.LayerDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -93,6 +94,7 @@ public class MainActivity extends Activity {
     private RecyclerView pager;
     private PagesAdapter pagesAdapter;
     private PageIndicator indicator;
+    private ImageView dockDrawerBtn; // botón del dock que abre el cajón (se tiñe con el acento)
     private TextView homeHint;
     private CappedLinearLayout dock;
     private View homeTrash;
@@ -143,6 +145,7 @@ public class MainActivity extends Activity {
     private TextView drawerTitle;
     private String openFolderId;
     private int fontApplied = -1; // versión de la fuente que ya está aplicada a las vistas
+    private int accentApplied = -1; // versión del color de acento que ya está aplicada a la Home (7B-1)
     private BackdropView homeBackdrop;   // fondo de la Home
     private BackdropView drawerBackdrop; // fondo del cajón
     private final ExecutorService bgIo = Executors.newSingleThreadExecutor();
@@ -300,6 +303,7 @@ public class MainActivity extends Activity {
         final LinearLayout root;     // la cuadrícula de celdas
         final FolderLayer layer;     // encima de la cuadrícula: carpetas redimensionadas (> 1x1)
         final FrameLayout[][] cells = new FrameLayout[HomeStore.HOME_ROWS][HomeStore.HOME_COLS];
+        int cellAccent;              // acento con el que se pintó el resaltado de sus celdas (7B-1)
         PageVH(FrameLayout page, LinearLayout root, FolderLayer layer) {
             super(page);
             this.root = root;
@@ -468,6 +472,7 @@ public class MainActivity extends Activity {
 
         FontManager.apply(getWindow().getDecorView()); // textos fijos (cajón, modo edición, mensaje)
         fontApplied = FontManager.version();
+        applyAccent(false); // 7B-1: color de acento guardado (indicador, botón del dock, celdas)
 
         audio = new AudioPlayer(audioHost);
         applyBackgrounds();
@@ -502,6 +507,7 @@ public class MainActivity extends Activity {
             adapter.notifyDataSetChanged(); // nombres del cajón
             renderHome();                   // nombres de la Home
         }
+        if (accentApplied != ThemeUtils.version()) applyAccent(true); // cambió en "Configuración de pantalla principal"
     }
 
     /**
@@ -1635,7 +1641,7 @@ public class MainActivity extends Activity {
                 d.hoverView.setBackgroundResource(R.drawable.item_bg);
             }
             if (hv != null) {
-                hv.setBackgroundResource(R.drawable.cell_bg);
+                hv.setBackground(ThemeUtils.cellBg(this));
                 hv.setActivated(true);
             }
             d.hoverView = hv;
@@ -1947,11 +1953,39 @@ public class MainActivity extends Activity {
     //  HOME y DOCK
     // =========================================================================
 
+    /**
+     * 7B-1: aplica el color de acento a lo principal de la Home: segmento activo de los indicadores de páginas,
+     * ícono del botón del dock, resaltado de las celdas al arrastrar y casita de las tarjetas del modo edición.
+     * El resto del launcher (menús, hojas, cajón) sigue con el dorado de colors.xml hasta la parte 2.
+     */
+    private void applyAccent(boolean refresh) {
+        accentApplied = ThemeUtils.version();
+        int accent = ThemeUtils.accent(this);
+        indicator.setAccent(accent);
+        editIndicator.setAccent(accent);
+        tintDrawerButton();
+        for (FrameLayout slot : dockSlots) slot.setBackground(ThemeUtils.cellBg(this));
+        if (refresh) {
+            pagesAdapter.notifyDataSetChanged(); // bindPage repinta las celdas de cada página
+            editAdapter.notifyDataSetChanged();  // casita de las tarjetas
+        }
+    }
+
+    /** Tiñe el ícono de cuadrícula del botón del dock (la segunda capa de ic_drawer_btn). */
+    private void tintDrawerButton() {
+        if (dockDrawerBtn == null) return;
+        Drawable d = dockDrawerBtn.getDrawable();
+        if (d instanceof LayerDrawable) {
+            d = d.mutate();
+            ((LayerDrawable) d).getDrawable(1).setTint(ThemeUtils.accentHi(this));
+        }
+    }
+
     private void buildDock() {
         dock.removeAllViews();
         for (int i = 0; i < HomeStore.DOCK_SLOTS; i++) {
             FrameLayout slot = new FrameLayout(this);
-            slot.setBackgroundResource(R.drawable.cell_bg);
+            slot.setBackground(ThemeUtils.cellBg(this));
             dockSlots[i] = slot;
             dock.addView(slot, new LinearLayout.LayoutParams(0, dp(76), 1f));
         }
@@ -1966,6 +2000,8 @@ public class MainActivity extends Activity {
         FrameLayout btnSlot = new FrameLayout(this);
         ImageView btn = new ImageView(this);
         btn.setImageResource(R.drawable.ic_drawer_btn);
+        dockDrawerBtn = btn;
+        tintDrawerButton();
         btn.setBackgroundResource(R.drawable.item_bg);
         btn.setContentDescription(getString(R.string.abrir_cajon));
         btn.setOnClickListener(v -> openDrawer());
@@ -2024,6 +2060,7 @@ public class MainActivity extends Activity {
         page.addView(layer, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         PageVH h = new PageVH(page, root, layer);
+        h.cellAccent = ThemeUtils.accent(this);
         for (int r = 0; r < HomeStore.HOME_ROWS; r++) {
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
@@ -2031,7 +2068,7 @@ public class MainActivity extends Activity {
                     ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
             for (int c = 0; c < HomeStore.HOME_COLS; c++) {
                 FrameLayout cell = new FrameLayout(this);
-                cell.setBackgroundResource(R.drawable.cell_bg);
+                cell.setBackground(ThemeUtils.cellBg(this));
                 h.cells[r][c] = cell;
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                         0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
@@ -2050,8 +2087,14 @@ public class MainActivity extends Activity {
     }
 
     private void bindPage(PageVH h, int pageId) {
+        int accent = ThemeUtils.accent(this);
+        boolean repaint = h.cellAccent != accent; // el acento cambió desde que se pintó esta página (7B-1)
+        h.cellAccent = accent;
         for (FrameLayout[] row : h.cells) {
-            for (FrameLayout cell : row) cell.removeAllViews();
+            for (FrameLayout cell : row) {
+                cell.removeAllViews();
+                if (repaint) cell.setBackground(ThemeUtils.cellBg(this));
+            }
         }
         h.layer.removeAllViews();
         // Se recorre la lista de instancias y se dibuja cada una en su posición.
@@ -3206,6 +3249,7 @@ public class MainActivity extends Activity {
             h.card.setAlpha(1f);
             h.card.setActivated(false);
             h.house.setVisibility(id == homeStore.mainId() ? View.VISIBLE : View.GONE);
+            h.house.setColorFilter(ThemeUtils.accentHi(MainActivity.this)); // 7B-1
             fillThumb(h.thumb, id);
             h.card.setOnClickListener(v -> {
                 int p = h.getBindingAdapterPosition();

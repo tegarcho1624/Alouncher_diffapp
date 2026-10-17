@@ -52,6 +52,7 @@
     <string name="estilo_escritura">Estilo de Escritura</string>
     <string name="estilos">Estilos</string>
     <string name="disposicion">Cambiar la disposición de la pantalla de inicio</string>
+    <string name="color_acento">Color de acento</string>
     <string name="importar_fuente">Importar fuente</string>
     <string name="buscar">Buscar</string>
     <string name="buscar_fuente">Buscar fuente</string>

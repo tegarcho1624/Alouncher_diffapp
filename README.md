@@ -1,4 +1,4 @@
-# Alouncher (Fase 7A)
+# Alouncher (Fase 7B-1)
 
 Fase 1: grid de 4 columnas, toque = abrir, pulsación larga = menú.
 Fase 2: personalización por entrada del launcher (ícono, nombre, ocultar, restaurar).
@@ -138,3 +138,18 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
   (0 = el gesto puede empezar en cualquier parte de la Home; 0.5 = solo desde la mitad inferior).
 - Funciona en vertical y horizontal (el alto se lee de la Home en cada gesto; la actividad no bloquea la orientación).
 - Sin permisos nuevos y sin cambios en cajón, dock, páginas, carpetas, widgets ni fondos.
+
+## Fase 7B-1 (color de acento: selector y Home)
+- "Configuración de pantalla principal" tiene una fila nueva, "Color de acento", debajo de la disposición: a la derecha un círculo con el
+  color actual (por defecto el dorado). Tocar la fila abre una hoja inferior (BottomSheet, mismo patrón que el color de fondo de carpetas)
+  con 12 círculos (Dorado, Amarillo, Naranja, Rojo, Rosa, Morado, Azul, Cian, Turquesa, Verde, Lima, Plata). Al elegir uno se guarda,
+  la hoja se cierra y el círculo de la fila se actualiza.
+- ThemeUtils (nueva): accent() / accentHi() / setAccent() / version() / cellBg() y la paleta ACCENT_COLORS. Se guarda como entero ARGB en
+  SharedPreferences "settings", clave "accent" (junto a la fuente). Sin valor guardado: dorado (#C9A24B; accentHi = #E2BD67, igual que
+  gold / gold_hi). Para otros colores, accentHi es el acento mezclado un 22 % con blanco.
+- Se aplica al volver a la Home (MainActivity.onResume compara ThemeUtils.version(), igual que la fuente) con MainActivity.applyAccent():
+  segmento activo de los indicadores de páginas (Home y modo edición, PageIndicator.setAccent), ícono de cuadrícula del botón del dock
+  (tinte de la 2ª capa de ic_drawer_btn), resaltado de celdas y dock al arrastrar (cellBg() en lugar de cell_bg.xml; PageVH.cellAccent
+  repinta cada página al volver a enlazarla) y casita de las tarjetas del modo edición.
+- Sin cambios en menús, hojas, cajón, carpetas, widgets, fondos ni fuentes: siguen leyendo gold / gold_hi de colors.xml (parte 2).
+- cell_bg.xml sigue existiendo: solo lo usa ya WidgetsActivity.

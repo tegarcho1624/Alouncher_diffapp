@@ -2,19 +2,22 @@ package com.alouncher.app;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-/** Configuración de pantalla principal: Estilo de Escritura (fuentes) y disposición (próximamente). */
+/** Configuración de pantalla principal: Estilo de Escritura (fuentes), disposición (próximamente) y Color de acento (7B-1). */
 public class HomeSettingsActivity extends Activity {
 
     private LinearLayout root;
+    private GradientDrawable accentDot; // círculo del color actual en la fila "Color de acento"
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,6 +60,8 @@ public class HomeSettingsActivity extends Activity {
                 HomeStore.HOME_COLS + "\u00d7" + HomeStore.HOME_ROWS,
                 v -> Toast.makeText(this, R.string.proximamente, Toast.LENGTH_SHORT).show()));
         root.addView(divider());
+        root.addView(accentRow());
+        root.addView(divider());
 
         setContentView(root);
         FontManager.apply(root);
@@ -66,6 +71,67 @@ public class HomeSettingsActivity extends Activity {
     protected void onResume() {
         super.onResume();
         FontManager.apply(root); // por si se cambió la fuente en la pantalla de Estilos
+    }
+
+    /** Fila "Color de acento": en lugar de texto lleva un círculo con el color actual. Tocar la fila abre el selector. */
+    private View accentRow() {
+        LinearLayout r = (LinearLayout) row(getString(R.string.color_acento), "", v -> showAccentSheet());
+        r.removeViewAt(1); // el texto del valor: aquí va el círculo
+
+        accentDot = new GradientDrawable();
+        accentDot.setShape(GradientDrawable.OVAL);
+        accentDot.setStroke(dp(1), getColor(R.color.ln2));
+        accentDot.setColor(ThemeUtils.accent(this));
+        View dot = new View(this);
+        dot.setBackground(accentDot);
+        r.addView(dot, 1, new LinearLayout.LayoutParams(dp(28), dp(28)));
+        return r;
+    }
+
+    /** Selector: paleta de círculos. Al elegir uno se guarda, se cierra la hoja y el círculo de la fila se actualiza. */
+    private void showAccentSheet() {
+        BottomSheet s = new BottomSheet(this, getString(R.string.elegir_color), null);
+        final int current = ThemeUtils.accent(this);
+        final int cols = 4;
+        LinearLayout line = null;
+        for (int i = 0; i < ThemeUtils.ACCENT_COLORS.length; i++) {
+            if (i % cols == 0) {
+                line = new LinearLayout(this);
+                line.setOrientation(LinearLayout.HORIZONTAL);
+                LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                if (i > 0) rp.topMargin = dp(14);
+                s.body().addView(line, rp);
+            }
+            final int color = ThemeUtils.ACCENT_COLORS[i];
+            boolean isCurrent = color == current;
+
+            GradientDrawable d = new GradientDrawable();
+            d.setShape(GradientDrawable.OVAL);
+            d.setColor(color);
+            d.setStroke(dp(isCurrent ? 3 : 1), getColor(isCurrent ? R.color.ink : R.color.ln2));
+
+            View swatch = new View(this);
+            swatch.setBackground(d);
+            swatch.setClickable(true);
+            swatch.setFocusable(true);
+            swatch.setOnClickListener(v -> {
+                s.dismiss();
+                ThemeUtils.setAccent(this, color);
+                accentDot.setColor(ThemeUtils.accent(this));
+            });
+            FrameLayout box = new FrameLayout(this);
+            FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(dp(48), dp(48));
+            sp.gravity = Gravity.CENTER;
+            box.addView(swatch, sp);
+            line.addView(box, new LinearLayout.LayoutParams(0, dp(48), 1f));
+        }
+
+        TextView cancel = BottomSheet.button(this, getString(R.string.cancelar), false);
+        cancel.setOnClickListener(v -> s.dismiss());
+        s.footer().addView(cancel, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        s.show();
     }
 
     private View row(String label, String value, View.OnClickListener click) {
