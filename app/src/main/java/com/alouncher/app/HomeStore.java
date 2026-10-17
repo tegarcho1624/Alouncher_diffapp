@@ -20,7 +20,8 @@ import java.util.UUID;
  * {"pages":[...], "main":id, "next":n,
  *  "items":[{"i":idInstancia,"k":"paquete/actividad","p":página,"r":fila,"c":columna} | {... "d":true ...}],
  *  "folders":[{"i":id,"n":nombre,"p":página,"r":fila,"c":columna,"x":ampliada,"ic":archivoÍcono,
- *              "bi":archivoFondo,"bc":colorFondo,"m":[{"i":idMiembro,"k":"paquete/actividad"}]}]}
+ *              "bi":archivoFondo,"bc":colorFondo,"m":[{"i":idMiembro,"k":"paquete/actividad"}]}],
+ *  "widgets":[{"i":appWidgetId,"pk":"paquete/clase del proveedor","p":página,"r":fila,"c":columna,"w":ancho,"h":alto}]}
  *
  * Una celda de la Home contiene UN elemento: una instancia de app o una carpeta. El dock solo lleva apps.
  * Las personalizaciones de las apps (ícono, nombre, oculta) NO viven aquí.
@@ -124,27 +125,37 @@ final class HomeStore {
         final int col;
         final int w;
         final int h;
+        final String provider; // ComponentName del proveedor en texto (paquete/clase); "" si no se conoce (6B-3)
 
-        Widget(int id, int page, int row, int col, int w, int h) {
+        Widget(int id, int page, int row, int col, int w, int h, String provider) {
             this.id = id;
             this.page = page;
             this.row = row;
             this.col = col;
             this.w = w;
             this.h = h;
+            this.provider = provider != null ? provider : "";
+        }
+
+        /** Paquete de la app que provee el widget. */
+        String packageName() {
+            int i = provider.indexOf('/');
+            return i < 0 ? provider : provider.substring(0, i);
         }
     }
 
-    /** Widgets colocados: SOLO en memoria (no se guardan; la persistencia es la fase 6B-3). */
+    /** Widgets colocados (6B-3: se guardan en "home_layout", junto con apps y carpetas). */
     private final LinkedHashMap<Integer, Widget> widgets = new LinkedHashMap<>();
     private final ArrayList<Integer> pages = new ArrayList<>();
     private int mainId = 1;
     private int nextId = 2;
+    private boolean widgetsDropped;                                  // al leer, algún widget ya no cabía: hay que guardar
+    private final ArrayList<Integer> droppedWidgetIds = new ArrayList<>(); // ids de esos widgets (el host debe liberarlos)
 
     HomeStore(Context ctx) {
         sp = ctx.getSharedPreferences("home_layout", Context.MODE_PRIVATE);
         boolean migrated = load();
-        if (migrated) save(); // deja los ids nuevos guardados
+        if (migrated || widgetsDropped) save(); // deja los ids nuevos guardados
     }
 
     private boolean valid(boolean dock, int page, int r, int c) {
@@ -173,6 +184,7 @@ final class HomeStore {
                 nextId = o.optInt("next", 2);
                 readItems(o.optJSONArray("items"));
                 readFolders(o.optJSONArray("folders"));
+                readWidgets(o.optJSONArray("widgets"));
             } else {
                 String legacy = sp.getString("layout", null);
                 if (legacy != null) {
@@ -184,6 +196,7 @@ final class HomeStore {
         } catch (JSONException e) {
             map.clear();
             folders.clear();
+            widgets.clear();
             pages.clear();
         }
         if (pages.isEmpty()) {
@@ -256,6 +269,44 @@ final class HomeStore {
         }
     }
 
+    /**
+     * Widgets guardados (6B-3). Se leen después de apps y carpetas. Uno dañado, en una página que ya no existe
+     * o cuyo rectángulo ya no está libre se descarta sin errores; su id queda en droppedWidgetIds para que el host lo libere.
+     */
+    private void readWidgets(JSONArray a) {
+        if (a == null) return;
+        for (int i = 0; i < a.length(); i++) {
+            JSONObject o = a.optJSONObject(i);
+            if (o == null || !o.has("i")) {
+                widgetsDropped = true;
+                continue;
+            }
+            int id = o.optInt("i", -1);
+            int p = o.optInt("p", 1);
+            int r = o.optInt("r", 0);
+            int c = o.optInt("c", 0);
+            int w = o.optInt("w", 1);
+            int h = o.optInt("h", 1);
+            if (id < 0 || widgets.containsKey(id)) {
+                widgetsDropped = true;
+                continue;
+            }
+            if (!pages.contains(p) || !widgetRectFree(p, r, c, w, h)) {
+                widgetsDropped = true;
+                droppedWidgetIds.add(id);
+                continue;
+            }
+            widgets.put(id, new Widget(id, p, r, c, w, h, o.optString("pk", "")));
+        }
+    }
+
+    /** Ids de widgets que no se pudieron conservar al leer lo guardado (se entregan una sola vez). */
+    synchronized List<Integer> takeDroppedWidgetIds() {
+        List<Integer> out = new ArrayList<>(droppedWidgetIds);
+        droppedWidgetIds.clear();
+        return out;
+    }
+
     private void save() {
         try {
             JSONObject o = new JSONObject();
@@ -299,6 +350,19 @@ final class HomeStore {
                 fa.put(fo);
             }
             o.put("folders", fa);
+            JSONArray wa = new JSONArray();
+            for (Widget wd : widgets.values()) {
+                JSONObject wo = new JSONObject();
+                wo.put("i", wd.id);
+                if (!wd.provider.isEmpty()) wo.put("pk", wd.provider);
+                wo.put("p", wd.page);
+                wo.put("r", wd.row);
+                wo.put("c", wd.col);
+                wo.put("w", wd.w);
+                wo.put("h", wd.h);
+                wa.put(wo);
+            }
+            o.put("widgets", wa);
             sp.edit().putString("layout3", o.toString()).remove("layout2").remove("layout").apply();
         } catch (JSONException ignored) {
         }
@@ -512,7 +576,7 @@ final class HomeStore {
         return best;
     }
 
-    // ---- Widgets (6B-1: solo en memoria) --------------------------------------------
+    // ---- Widgets (6B-1 colocar, 6B-3 guardar) ---------------------------------------
 
     synchronized List<Widget> widgets() {
         return new ArrayList<>(widgets.values());
@@ -558,10 +622,18 @@ final class HomeStore {
         return null;
     }
 
-    /** Registra un widget ya vinculado. false si ese rectángulo ya no está libre. No guarda en disco. */
-    synchronized boolean addWidget(int id, int page, int row, int col, int w, int h) {
+    /** Registra un widget ya vinculado y lo guarda. false si ese rectángulo ya no está libre. */
+    synchronized boolean addWidget(int id, int page, int row, int col, int w, int h, String provider) {
         if (!pages.contains(page) || !widgetRectFree(page, row, col, w, h)) return false;
-        widgets.put(id, new Widget(id, page, row, col, w, h));
+        widgets.put(id, new Widget(id, page, row, col, w, h, provider));
+        save();
+        return true;
+    }
+
+    /** Quita el registro de un widget que no se pudo restaurar (sus celdas quedan libres). No hay menú de usuario para esto (6B-5). */
+    synchronized boolean removeWidget(int id) {
+        if (widgets.remove(id) == null) return false;
+        save();
         return true;
     }
 

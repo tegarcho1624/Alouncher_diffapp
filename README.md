@@ -1,4 +1,4 @@
-# Alouncher (Fase 3A)
+# Alouncher (Fase 6B-3)
 
 Fase 1: grid de 4 columnas, toque = abrir, pulsación larga = menú.
 Fase 2: personalización por entrada del launcher (ícono, nombre, ocultar, restaurar).
@@ -74,4 +74,14 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
   concede a launchers normales: la primera vez sale el diálogo del sistema (ACTION_APPWIDGET_BIND).
   Los widgets con pantalla de configuración la abren antes de colocarse.
 - Las celdas del widget cuentan como ocupadas en HomeStore (apps y carpetas no se colocan encima).
-- Todavía SIN guardar (6B-3), mover (6B-2), redimensionar (6B-4) ni quitar (6B-5): al cerrar el launcher desaparece.
+- Todavía SIN mover (6B-2), redimensionar (6B-4) ni quitar (6B-5). (Guardar: ver 6B-3.)
+
+## Fase 6B-3 (persistencia de widgets)
+- Los widgets colocados se guardan en "home_layout" (clave "layout3", lista "widgets"): {"i": appWidgetId, "pk": proveedor "paquete/clase",
+  "p": página, "r": fila, "c": columna, "w": ancho, "h": alto en celdas}. Se guardan al colocarlos y al eliminar su página.
+- Ya no se llama a AppWidgetHost.deleteHost(): el sistema conserva los ids del host 1024 y se reutilizan al reabrir (y tras reiniciar).
+- MainActivity.restoreWidgets() (en onCreate, antes de dibujar la Home): por cada widget guardado comprueba que el id siga vinculado
+  (getAppWidgetInfo) y que su proveedor siga instalado (getInstalledProviders) y recrea la vista con createView(). Cualquier fallo
+  (app desinstalada, vínculo perdido, excepción) quita su registro y libera su id, sin avisos; sus celdas quedan libres.
+- HomeStore lee los widgets después de apps y carpetas; los que ya no caben o están en una página inexistente se descartan.
+- startListening() en onStart y stopListening() en onStop (ya estaban de la 6B-1).

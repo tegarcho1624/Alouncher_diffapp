@@ -328,6 +328,7 @@ public class MainActivity extends Activity {
         store = new CustomizationStore(this);
         homeStore = new HomeStore(this);
         initWidgetHost();
+        restoreWidgets(); // 6B-3: vuelve a crear los widgets guardados (antes de dibujar la Home)
         pruneFolderFiles(); // borra imágenes de carpetas que ya no existen
         if (savedInstanceState != null) {
             pendingIconKey = savedInstanceState.getString(STATE_PENDING_KEY);
@@ -552,13 +553,7 @@ public class MainActivity extends Activity {
         homeBackdrop.clearVideo();
         drawerBackdrop.clearVideo();
         if (audio != null) audio.release();
-        if (widgetHost != null) {
-            try {
-                widgetHost.deleteHost(); // los widgets aún no se guardan
-            } catch (Exception ignored) {
-                // nada que hacer
-            }
-        }
+        cancelPendingWidget(); // un widget a medias (sin colocar) se libera; los colocados se conservan (6B-3)
         super.onDestroy();
     }
 
@@ -2377,7 +2372,7 @@ public class MainActivity extends Activity {
 
 
     // =========================================================================
-    //  Widgets en la Home (fase 6B-1): colocar con "mantener presionado" desde el panel.
+    //  Widgets en la Home (fase 6B-1): colocar con "mantener presionado" desde el panel. (6B-3: se guardan y se restauran)
     //  Sin guardar (6B-3), sin mover (6B-2), sin redimensionar (6B-4), sin quitar (6B-5).
     // =========================================================================
 
@@ -2397,11 +2392,59 @@ public class MainActivity extends Activity {
     private void initWidgetHost() {
         widgetManager = AppWidgetManager.getInstance(this);
         widgetHost = new AppWidgetHost(this, WIDGET_HOST_ID);
+        // 6B-3: el host NO se borra. El sistema conserva los ids de los widgets colocados y aquí se reutilizan.
+    }
+
+    /**
+     * 6B-3: recrea los widgets guardados. Cada uno va en su try/catch: si el proveedor ya no existe, el id ya no
+     * está vinculado (permiso perdido) o algo falla, se quita su registro (así no se reintenta) y se sigue con el
+     * siguiente, sin avisos. Sus celdas quedan libres. El tamaño en celdas es el guardado al colocarlo.
+     */
+    private void restoreWidgets() {
+        if (widgetHost == null || widgetManager == null) return;
+
+        // Ids de widgets que ya no cabían al leer lo guardado: se liberan en el host
+        for (int id : homeStore.takeDroppedWidgetIds()) {
+            try {
+                widgetHost.deleteAppWidgetId(id);
+            } catch (Exception ignored) {
+                // nada que hacer
+            }
+        }
+
+        List<HomeStore.Widget> saved = homeStore.widgets();
+        if (saved.isEmpty()) return;
+
+        java.util.Set<ComponentName> installed = new java.util.HashSet<>();
         try {
-            // Los widgets aún no se guardan: se liberan los ids que hubiera dejado una sesión anterior
-            widgetHost.deleteHost();
+            for (AppWidgetProviderInfo p : widgetManager.getInstalledProviders()) installed.add(p.provider);
         } catch (Exception ignored) {
-            // si el sistema no lo permite, solo quedan ids sin usar
+            // lista no disponible: ningún widget se podrá comprobar y se descartan (sin errores)
+        }
+
+        for (HomeStore.Widget wd : saved) {
+            boolean ok = false;
+            try {
+                AppWidgetProviderInfo info = widgetManager.getAppWidgetInfo(wd.id); // null si ya no está vinculado
+                if (info != null && info.provider != null && installed.contains(info.provider)) {
+                    AppWidgetHostView hv = widgetHost.createView(this, wd.id, info);
+                    if (hv != null) {
+                        trackWidgetSize(hv);
+                        widgetViews.put(wd.id, hv);
+                        ok = true;
+                    }
+                }
+            } catch (Exception ignored) {
+                // se descarta abajo
+            }
+            if (!ok) {
+                homeStore.removeWidget(wd.id);
+                try {
+                    widgetHost.deleteAppWidgetId(wd.id);
+                } catch (Exception ignored) {
+                    // nada que hacer
+                }
+            }
         }
     }
 
@@ -2569,7 +2612,7 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) {
             // se avisa abajo
         }
-        if (hv == null || !homeStore.addWidget(id, s[0], s[1], s[2], s[3], s[4])) {
+        if (hv == null || !homeStore.addWidget(id, s[0], s[1], s[2], s[3], s[4], info.provider.flattenToString())) {
             try {
                 widgetHost.deleteAppWidgetId(id);
             } catch (Exception ignored) {
