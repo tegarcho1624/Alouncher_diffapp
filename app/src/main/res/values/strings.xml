@@ -178,6 +178,8 @@
     <string name="color_solido">Color sólido</string>
     <string name="elegir_color">Elige un color</string>
     <string name="redimensionar">Redimensionar</string>
+    <string name="mover">Mover</string>
+    <string name="mover_ayuda">Arrastra el widget a un lugar libre</string>
     <string name="redimensionar_ayuda">Tamaño en celdas (1 a 3). Crece hacia la derecha y hacia abajo, solo sobre espacio libre.</string>
     <string name="ancho">Ancho</string>
     <string name="alto">Alto</string>

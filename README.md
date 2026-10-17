@@ -1,4 +1,4 @@
-# Alouncher (Fase 6B-3)
+# Alouncher (Fase 6B-2)
 
 Fase 1: grid de 4 columnas, toque = abrir, pulsación larga = menú.
 Fase 2: personalización por entrada del launcher (ícono, nombre, ocultar, restaurar).
@@ -74,7 +74,7 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
   concede a launchers normales: la primera vez sale el diálogo del sistema (ACTION_APPWIDGET_BIND).
   Los widgets con pantalla de configuración la abren antes de colocarse.
 - Las celdas del widget cuentan como ocupadas en HomeStore (apps y carpetas no se colocan encima).
-- Todavía SIN mover (6B-2), redimensionar (6B-4) ni quitar (6B-5). (Guardar: ver 6B-3.)
+- Todavía SIN redimensionar (6B-4) ni quitar (6B-5). (Guardar: ver 6B-3; mover: ver 6B-2.)
 
 ## Fase 6B-3 (persistencia de widgets)
 - Los widgets colocados se guardan en "home_layout" (clave "layout3", lista "widgets"): {"i": appWidgetId, "pk": proveedor "paquete/clase",
@@ -85,3 +85,16 @@ GitHub › Actions › Build APK. No cambies `applicationId` ni el keystore.
   (app desinstalada, vínculo perdido, excepción) quita su registro y libera su id, sin avisos; sus celdas quedan libres.
 - HomeStore lee los widgets después de apps y carpetas; los que ya no caben o están en una página inexistente se descartan.
 - startListening() en onStart y stopListening() en onStop (ya estaban de la 6B-1).
+
+## Fase 6B-2 (mover widgets)
+- Mantener presionado un widget de la Home abre su menú (mismo estilo que los de apps y carpetas): "Mover", y "Redimensionar" y
+  "Eliminar" atenuados que avisan "Próximamente" (llegan en 6B-4 y 6B-5).
+- Para detectar la pulsación larga antes de que el widget se quede el toque, cada widget es una WidgetHostView (AppWidgetHostView
+  propia, creada por el AppWidgetHost de MainActivity en onCreateView). Un toque corto o un arrastre normal siguen llegando al widget.
+- "Mover" pone una capa (WidgetMoveOverlay, como la de Redimensionar carpetas): fondo atenuado y marco dorado sobre el widget.
+  Al arrastrarlo, una copia con sombra sigue al dedo y la celda de destino se resalta (dorado = cabe, rojizo = no cabe).
+- Solo sobre celdas libres (opción B): HomeStore.canMoveWidget(id, página, fila, columna) ignora las celdas del propio widget y rechaza
+  apps, carpetas, otros widgets y todo lo que se salga del grid. Mismo tamaño en celdas.
+- Soltar en lugar válido: la copia se asienta en la celda y HomeStore.moveWidget() guarda la posición (misma lista "widgets" de la 6B-3).
+  Soltar en lugar inválido: la copia vuelve a su sitio con una animación corta y se sale del modo. Tocar fuera o "atrás" cancelan.
+- El movimiento es dentro de la página que se está viendo (no cambia de página al llegar al borde).

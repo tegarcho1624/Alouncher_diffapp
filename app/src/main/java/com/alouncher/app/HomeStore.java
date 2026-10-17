@@ -630,6 +630,38 @@ final class HomeStore {
         return true;
     }
 
+    synchronized Widget widget(int id) {
+        return widgets.get(id);
+    }
+
+    /**
+     * 6B-2: ¿cabe el widget (con su tamaño actual) con su esquina superior izquierda en (row, col) de esa página?
+     * Sus propias celdas actuales cuentan como libres; apps, carpetas y otros widgets, no. Fuera del grid: no.
+     */
+    synchronized boolean canMoveWidget(int id, int page, int row, int col) {
+        Widget wd = widgets.get(id);
+        if (wd == null || !pages.contains(page)) return false;
+        if (row < 0 || col < 0 || row + wd.h > HOME_ROWS || col + wd.w > HOME_COLS) return false;
+        for (int r = row; r < row + wd.h; r++) {
+            for (int c = col; c < col + wd.w; c++) {
+                if (instanceAt(false, page, r, c) != null) return false;
+                if (folderAtRaw(page, r, c) != null) return false;
+                Widget other = widgetAtRaw(page, r, c);
+                if (other != null && other.id != id) return false;
+            }
+        }
+        return true;
+    }
+
+    /** 6B-2: cambia de sitio un widget ya colocado (mismo tamaño) y lo guarda. false (sin cambios) si no cabe. */
+    synchronized boolean moveWidget(int id, int page, int row, int col) {
+        if (!canMoveWidget(id, page, row, col)) return false;
+        Widget wd = widgets.get(id);
+        widgets.put(id, new Widget(id, page, row, col, wd.w, wd.h, wd.provider));
+        save();
+        return true;
+    }
+
     /** Quita el registro de un widget que no se pudo restaurar (sus celdas quedan libres). No hay menú de usuario para esto (6B-5). */
     synchronized boolean removeWidget(int id) {
         if (widgets.remove(id) == null) return false;

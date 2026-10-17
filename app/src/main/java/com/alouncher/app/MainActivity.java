@@ -512,6 +512,7 @@ public class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         exitResizeMode();
+        exitMoveMode();
         dismissMenu();
         dismissSheet();
         dismissFolderPanel();
@@ -530,7 +531,9 @@ public class MainActivity extends Activity {
     /** "Atrás": cierra el cajón si está abierto; en la Home no hace nada. */
     @Override
     public void onBackPressed() {
-        if (resizeOverlay != null) {
+        if (moveOverlay != null) {
+            exitMoveMode();
+        } else if (resizeOverlay != null) {
             exitResizeMode();
         } else if (menu != null) {
             dismissMenu();
@@ -2391,7 +2394,15 @@ public class MainActivity extends Activity {
 
     private void initWidgetHost() {
         widgetManager = AppWidgetManager.getInstance(this);
-        widgetHost = new AppWidgetHost(this, WIDGET_HOST_ID);
+        // 6B-2: la vista de cada widget es una WidgetHostView, que detecta la pulsación larga (menú del widget)
+        widgetHost = new AppWidgetHost(this, WIDGET_HOST_ID) {
+            @Override
+            protected AppWidgetHostView onCreateView(Context context, int appWidgetId, AppWidgetProviderInfo info) {
+                WidgetHostView v = new WidgetHostView(context);
+                v.setOnLongPress(MainActivity.this::onWidgetLongPress);
+                return v;
+            }
+        };
         // 6B-3: el host NO se borra. El sistema conserva los ids de los widgets colocados y aquí se reutilizan.
     }
 
@@ -2676,6 +2687,99 @@ public class MainActivity extends Activity {
             }
             it.remove();
         }
+    }
+
+    // ---- Mover un widget (6B-2) -----------------------------------------------------------
+
+    private WidgetMoveOverlay moveOverlay;
+    private int moveWidgetId = -1;
+
+    /** Pulsación larga sobre un widget de la Home: menú del widget. */
+    private void onWidgetLongPress(WidgetHostView v) {
+        if (editMode || drawerOpen || resizeOverlay != null || moveOverlay != null) return;
+        showWidgetMenu(v, v.getAppWidgetId());
+    }
+
+    /** Menú del widget (mismo estilo que los de apps y carpetas). Redimensionar y Eliminar llegan en 6B-4 y 6B-5. */
+    private void showWidgetMenu(View anchor, int widgetId) {
+        LinearLayout col = newMenuColumn();
+        col.addView(menuRow(getString(R.string.mover), () -> enterMoveMode(widgetId)));
+        col.addView(soonRow(getString(R.string.redimensionar)));
+        col.addView(soonRow(getString(R.string.eliminar)));
+        popup(anchor, col);
+    }
+
+    /** Entra en el modo: marco dorado sobre el widget; se arrastra y se suelta en celdas libres de esta misma página. */
+    private void enterMoveMode(int widgetId) {
+        HomeStore.Widget wd = homeStore.widget(widgetId);
+        AppWidgetHostView hv = widgetViews.get(widgetId);
+        if (wd == null || hv == null || editMode || drawerOpen) return;
+        if (wd.page != homeStore.pageId(currentIndex)) return;
+        exitMoveMode();
+        dismissMenu();
+        dismissSheet();
+
+        WidgetMoveOverlay ov = new WidgetMoveOverlay(this, dp(3)); // mismo margen de celda que FolderLayer
+        ov.setListener(new WidgetMoveOverlay.Listener() {
+            @Override public boolean canDrop(int row, int col) {
+                HomeStore.Widget cur = homeStore.widget(widgetId);
+                return cur != null && homeStore.canMoveWidget(widgetId, cur.page, row, col);
+            }
+
+            @Override public void onDragStart() {
+                View v = widgetViews.get(widgetId);
+                if (v != null) v.setAlpha(0.35f); // el original se atenúa mientras se arrastra su copia
+            }
+
+            @Override public void onDrop(int row, int col) {
+                HomeStore.Widget cur = homeStore.widget(widgetId);
+                if (cur != null) homeStore.moveWidget(widgetId, cur.page, row, col); // se guarda en home_layout
+                exitMoveMode();
+                renderHome();
+            }
+
+            @Override public void onExit() {
+                exitMoveMode();
+            }
+
+            @Override public void onSize() {
+                ui.post(() -> computeMoveGeometry());
+            }
+        });
+        ((FrameLayout) homeLayer).addView(ov, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        moveOverlay = ov;
+        moveWidgetId = widgetId;
+        ov.setWidget(wd.row, wd.col, wd.w, wd.h, hv);
+        if (!computeMoveGeometry()) exitMoveMode();
+    }
+
+    private void exitMoveMode() {
+        if (moveOverlay != null) {
+            ((FrameLayout) homeLayer).removeView(moveOverlay);
+            moveOverlay = null;
+        }
+        View v = moveWidgetId == -1 ? null : widgetViews.get(moveWidgetId);
+        if (v != null) v.setAlpha(1f);
+        moveWidgetId = -1;
+    }
+
+    /** Posición de la cuadrícula de la página actual en coordenadas de la capa (la misma cuenta que el modo Redimensionar). */
+    private boolean computeMoveGeometry() {
+        if (moveOverlay == null) return false;
+        PageVH h = currentPageHolder();
+        if (h == null) return false;
+        int[] a = new int[2];
+        int[] b = new int[2];
+        homeLayer.getLocationOnScreen(a);
+        h.root.getLocationOnScreen(b);
+        float left = b[0] - a[0] + h.root.getPaddingLeft();
+        float top = b[1] - a[1] + h.root.getPaddingTop();
+        float w = h.root.getWidth() - h.root.getPaddingLeft() - h.root.getPaddingRight();
+        float hh = h.root.getHeight() - h.root.getPaddingTop() - h.root.getPaddingBottom();
+        if (w <= 0 || hh <= 0) return false;
+        moveOverlay.setGrid(left, top, w / HomeStore.HOME_COLS, hh / HomeStore.HOME_ROWS);
+        return true;
     }
 
     private void openSoon(int titleRes) {
